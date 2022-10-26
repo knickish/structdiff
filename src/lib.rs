@@ -1,6 +1,7 @@
 pub use structdiff_derive::Difference;
 
 pub trait StructDiff: PartialEq + Clone {
+
     type Diff;
 
     fn diff(&self, prev: &Self) -> Vec<Self::Diff>;

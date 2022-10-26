@@ -1,6 +1,6 @@
 [package]
 name = "structdiff-derive"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Makepad <info@makepad.nl>", "Fedor <not.fl3@gmail.com>", "Kirk <knickish@gmail.com"]
 edition = "2018"
 description = "Fork of nanoserde's parsing library"
@@ -9,3 +9,11 @@ license = "MIT"
 [lib]
 proc-macro = true
 
+[dependencies]
+nanoserde           = { version = "^0.1.30", optional = true }
+serde               = { version = "^1.0.0", optional = true, features = ["derive"] }
+
+[features]
+"default"   = []
+"nanoserde" = ["dep:nanoserde"]
+"serde"     = ["dep:serde"]
