@@ -9,29 +9,29 @@ fn test_example() {
         field2: Vec<i32>,
         field3: String,
     }
-    
+
     let first = Example {
         field1: 0.0,
         field2: Vec::new(),
         field3: String::from("Hello Diff"),
     };
-    
+
     let second = Example {
         field1: 3.14,
         field2: vec![1],
         field3: String::from("Hello Diff"),
     };
-    
+
     let diffs = second.diff(&first);
-    // diffs is now a Vec of differences, with length 
+    // diffs is now a Vec of differences, with length
     // equal to number of changed/unskipped fields
     assert_eq!(diffs.len(), 1);
-    
+
     let diffed = first.apply(diffs);
     // diffed is now equal to second, except for skipped field
     assert_eq!(diffed.field1, second.field1);
     assert_eq!(diffed.field3, second.field3);
-    assert_ne!(diffed, second); 
+    assert_ne!(diffed, second);
 }
 
 mod basic {
@@ -203,9 +203,9 @@ mod derive {
     }
 }
 
-#[cfg(all(test, feature= "nanoserde"))]
+#[cfg(all(test, feature = "nanoserde"))]
 mod nanoserde_serialize {
-    use nanoserde::{SerBin, DeBin};
+    use nanoserde::{DeBin, SerBin};
     use structdiff::{Difference, StructDiff};
     #[derive(Debug, PartialEq, Clone, Difference)]
     struct TestSkip {
@@ -244,7 +244,7 @@ mod nanoserde_serialize {
     }
 }
 
-#[cfg(all(test, feature= "serde"))]
+#[cfg(all(test, feature = "serde"))]
 mod serde_serialize {
     use structdiff::{Difference, StructDiff};
     #[derive(Debug, PartialEq, Clone, Difference)]

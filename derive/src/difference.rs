@@ -10,19 +10,19 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
         "Clone",
         #[cfg(feature = "nanoserde")]
         "nanoserde::SerBin",
-        #[cfg(feature = "nanoserde")] 
+        #[cfg(feature = "nanoserde")]
         "nanoserde::DeBin",
         #[cfg(feature = "serde")]
         "serde::Serialize",
         #[cfg(feature = "serde")]
-        "serde::Deserialize"
-    ].join(", ");
+        "serde::Deserialize",
+    ]
+    .join(", ");
 
     let mut diff_enum_body = String::new();
     let mut diff_body = String::new();
     let mut apply_single_body = String::new();
     let enum_name = String::from("__".to_owned() + struct_.name.as_str() + "StructDiffEnum");
-
 
     struct_
         .fields
@@ -54,7 +54,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                 index
             );
         });
-    
+
     #[allow(unused)]
     let nanoserde_hack = String::new();
     #[cfg(feature = "nanoserde")]
