@@ -1,13 +1,20 @@
 [package]
 name = "structdiff"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/knickish/structdiff"
 description = """zero-dependency crate for generating and applying partial diffs between struct instances"""
 
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-structdiff-derive = {path = "derive", version = "=0.1.0"}
+nanoserde           = { version = "^0.1.30", optional = true }
+serde               = { version = "^1.0.0", optional = true, features = ["derive"] }
+structdiff-derive   = { path = "derive", version = "=0.2.0" }
+
+[features]
+"default"   = []
+"nanoserde" = ["dep:nanoserde", "structdiff-derive/nanoserde"]
+"serde"     = ["dep:serde", "structdiff-derive/serde"]
+
+[dev-dependencies]
+serde_json = "1.0.87"

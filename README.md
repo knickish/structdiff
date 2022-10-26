@@ -41,10 +41,8 @@ assert_ne!(diffed, second);
 
 For more examples take a look at [integration tests](/tests)
 
+## Optional features
+- [`nanoserde`, `serde`] - Serialization of `Difference` derived associated types
+
 ### Development status 
 This is being actively worked on. PRs will be accepted for either more tests or functionality.
-
-### TODO
-- Serializer integration
-- Handle collections
-- Recurisve diffs

@@ -9,29 +9,29 @@ fn test_example() {
         field2: Vec<i32>,
         field3: String,
     }
-    
+
     let first = Example {
         field1: 0.0,
         field2: Vec::new(),
         field3: String::from("Hello Diff"),
     };
-    
+
     let second = Example {
         field1: 3.14,
         field2: vec![1],
         field3: String::from("Hello Diff"),
     };
-    
+
     let diffs = second.diff(&first);
-    // diffs is now a Vec of differences, with length 
+    // diffs is now a Vec of differences, with length
     // equal to number of changed/unskipped fields
     assert_eq!(diffs.len(), 1);
-    
+
     let diffed = first.apply(diffs);
     // diffed is now equal to second, except for skipped field
     assert_eq!(diffed.field1, second.field1);
     assert_eq!(diffed.field3, second.field3);
-    assert_ne!(diffed, second); 
+    assert_ne!(diffed, second);
 }
 
 mod basic {
@@ -200,5 +200,86 @@ mod derive {
 
             assert_eq!(diffed, second);
         }
+    }
+}
+
+#[cfg(all(test, feature = "nanoserde"))]
+mod nanoserde_serialize {
+    use nanoserde::{DeBin, SerBin};
+    use structdiff::{Difference, StructDiff};
+    #[derive(Debug, PartialEq, Clone, Difference)]
+    struct TestSkip {
+        test1: i32,
+        test2: String,
+        #[difference(skip)]
+        test3: Vec<i32>,
+        test4: f32,
+    }
+
+    #[test]
+    fn test_derive_with_skip() {
+        let first = TestSkip {
+            test1: 0,
+            test2: String::new(),
+            test3: Vec::new(),
+            test4: 0.0,
+        };
+
+        let second = TestSkip {
+            test1: first.test1,
+            test2: String::from("Hello Diff"),
+            test3: vec![1],
+            test4: 3.14,
+        };
+
+        let diffs = second.diff(&first);
+        let ser = SerBin::serialize_bin(&diffs);
+        let diffed = first.apply(DeBin::deserialize_bin(&ser).unwrap());
+
+        //check that all except the skipped are changed
+        assert_eq!(diffed.test1, second.test1);
+        assert_eq!(diffed.test2, second.test2);
+        assert_ne!(diffed.test3, second.test3);
+        assert_eq!(diffed.test4, second.test4);
+    }
+}
+
+#[cfg(all(test, feature = "serde"))]
+mod serde_serialize {
+    use structdiff::{Difference, StructDiff};
+    #[derive(Debug, PartialEq, Clone, Difference)]
+    struct TestSkip {
+        test1: i32,
+        test2: String,
+        #[difference(skip)]
+        test3: Vec<i32>,
+        test4: f32,
+    }
+
+    #[test]
+    fn test_derive_with_skip() {
+        let first = TestSkip {
+            test1: 0,
+            test2: String::new(),
+            test3: Vec::new(),
+            test4: 0.0,
+        };
+
+        let second = TestSkip {
+            test1: first.test1,
+            test2: String::from("Hello Diff"),
+            test3: vec![1],
+            test4: 3.14,
+        };
+
+        let diffs = second.diff(&first);
+        let ser = serde_json::to_string(&diffs).unwrap();
+        let diffed = first.apply(serde_json::from_str(&ser).unwrap());
+
+        //check that all except the skipped are changed
+        assert_eq!(diffed.test1, second.test1);
+        assert_eq!(diffed.test2, second.test2);
+        assert_ne!(diffed.test3, second.test3);
+        assert_eq!(diffed.test4, second.test4);
     }
 }
