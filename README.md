@@ -41,6 +41,11 @@ assert_ne!(diffed, second);
 
 For more examples take a look at [integration tests](/tests)
 
+## Derive macro attributes
+- `#[difference(skip)]`     - Do not consider this field when creating a diff
+- `#[difference(recurse)]`  - Generate a StructDiff for this field when creating a diff 
+rather than cloning entire instance
+
 ## Optional features
 - [`nanoserde`, `serde`] - Serialization of `Difference` derived associated types
 

@@ -2,6 +2,7 @@ use alloc::format;
 use alloc::string::String;
 
 use crate::parse::Struct;
+use crate::shared::{attrs_recurse, attrs_skip};
 
 use proc_macro::TokenStream;
 
@@ -22,37 +23,66 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
     let mut diff_enum_body = String::new();
     let mut diff_body = String::new();
     let mut apply_single_body = String::new();
+    let mut type_aliases = String::new();
     let enum_name = String::from("__".to_owned() + struct_.name.as_str() + "StructDiffEnum");
 
     struct_
         .fields
         .iter()
-        .filter(|x| {
-            !x.attributes
-                .iter()
-                .any(|y| y.name == "difference".to_owned() && y.tokens.contains(&"skip".to_owned()))
-        })
+        .filter(|x| !attrs_skip(&x.attributes))
         .enumerate()
         .for_each(|(index, field)| {
             let field_name = field.field_name.as_ref().unwrap();
-            l!(diff_enum_body, " {}({}),", field_name, field.ty.path);
-            l!(
-                diff_body,
-                "if self.{} != prev.{} {{diffs.push(Self::Diff::{}(self.{}.clone()))}};",
-                field_name,
-                field_name,
-                field_name,
-                field_name
-            );
 
-            l!(
-                apply_single_body,
-                "Self::Diff::{}(__{}) => self.{} = __{},",
-                field_name,
-                index,
-                field_name,
-                index
-            );
+            match attrs_recurse(&field.attributes) {
+                true => { // Recurse inwards and generate a Vec<SubStructDiff> instead of cloning the entire thing
+                    let typename = format!("__{}StructDiffVec", field_name);
+                    l!(type_aliases, "type {} = Vec<<{} as StructDiff>::Diff>;", typename, field.ty.path);
+
+                    l!(diff_enum_body, " {}({}),", field_name, typename);
+
+                    l!(
+                        apply_single_body,
+                        "Self::Diff::{}(__{}) => self.{} = self.{}.apply_ref(__{}),",
+                        field_name,
+                        index,
+                        field_name,
+                        field_name,
+                        index
+                    );
+
+                    l!(
+                        diff_body,
+                        "if &self.{} != &prev.{} {{diffs.push(Self::Diff::{}(self.{}.diff(&prev.{})))}};",
+                        field_name,
+                        field_name,
+                        field_name,
+                        field_name,
+                        field_name
+                    );
+                },
+                false => {
+                    l!(diff_enum_body, " {}({}),", field_name, field.ty.path);
+
+                    l!(
+                        apply_single_body,
+                        "Self::Diff::{}(__{}) => self.{} = __{},",
+                        field_name,
+                        index,
+                        field_name,
+                        index
+                    );
+
+                    l!(
+                        diff_body,
+                        "if self.{} != prev.{} {{diffs.push(Self::Diff::{}(self.{}.clone()))}};",
+                        field_name,
+                        field_name,
+                        field_name,
+                        field_name
+                    );
+                }
+            }
         });
 
     #[allow(unused)]
@@ -61,7 +91,11 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
     let nanoserde_hack = String::from("\nuse nanoserde::*;");
 
     format!(
-        "/// Generated type from StructDiff{nanoserde_hack}
+        "///Generated aliases fron StructDiff
+        {type_aliases}
+        
+        /// Generated type from StructDiff
+        {nanoserde_hack}
         #[derive({derives})]
         pub enum {enum_name} {{
             {enum_body}
@@ -83,6 +117,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                 }}
             }}
         }}",
+        type_aliases = type_aliases,
         nanoserde_hack = nanoserde_hack,
         derives = derives,
         struct_name = struct_.name,
