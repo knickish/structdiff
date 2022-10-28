@@ -135,7 +135,7 @@ mod derive {
         struct TestRecurse {
             test1: i32,
             #[difference(recurse)]
-            test2: Test
+            test2: Test,
         }
 
         let first = TestRecurse {
@@ -145,7 +145,7 @@ mod derive {
                 test2: String::new(),
                 test3: Vec::new(),
                 test4: 0.0,
-            }
+            },
         };
 
         let second = TestRecurse {
@@ -155,12 +155,12 @@ mod derive {
                 test2: String::new(),
                 test3: Vec::new(),
                 test4: 3.14,
-            }
+            },
         };
 
         let diffs = second.diff(&first);
         assert_eq!(diffs.len(), 2);
-        
+
         if let __TestRecurseStructDiffEnum::test2(val) = &diffs[1] {
             assert_eq!(val.len(), 2);
         } else {

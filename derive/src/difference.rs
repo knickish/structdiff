@@ -2,7 +2,7 @@ use alloc::format;
 use alloc::string::String;
 
 use crate::parse::Struct;
-use crate::shared::{attrs_skip, attrs_recurse};
+use crate::shared::{attrs_recurse, attrs_skip};
 
 use proc_macro::TokenStream;
 
@@ -83,9 +83,6 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                     );
                 }
             }
-
-            
-            
         });
 
     #[allow(unused)]
