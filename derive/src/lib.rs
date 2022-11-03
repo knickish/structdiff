@@ -9,7 +9,7 @@ use crate::difference::derive_struct_diff_struct;
 
 mod parse;
 
-/// Derive macro for StructDiff
+/// Derive macro generating an impl of the trait `StructDiff`
 #[proc_macro_derive(Difference, attributes(difference))]
 pub fn derive_struct_diff(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse::parse_data(input);

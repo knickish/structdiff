@@ -53,7 +53,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
 
                     l!(
                         diff_body,
-                        "if &self.{} != &prev.{} {{diffs.push(Self::Diff::{}(self.{}.diff(&prev.{})))}};",
+                        "if &self.{} != &updated.{} {{diffs.push(Self::Diff::{}(self.{}.diff(&updated.{})))}};",
                         field_name,
                         field_name,
                         field_name,
@@ -75,7 +75,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
 
                     l!(
                         diff_body,
-                        "if self.{} != prev.{} {{diffs.push(Self::Diff::{}(self.{}.clone()))}};",
+                        "if self.{} != updated.{} {{diffs.push(Self::Diff::{}(updated.{}.clone()))}};",
                         field_name,
                         field_name,
                         field_name,
@@ -104,7 +104,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
         impl StructDiff for {struct_name} {{
             type Diff = {enum_name};
 
-            fn diff(&self, prev: &Self) -> Vec<Self::Diff> {{
+            fn diff(&self, updated: &Self) -> Vec<Self::Diff> {{
                 let mut diffs = vec![];
                 {diff_body}
                 diffs

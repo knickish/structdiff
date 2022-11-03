@@ -22,7 +22,7 @@ fn test_example() {
         field3: String::from("Hello Diff"),
     };
 
-    let diffs = second.diff(&first);
+    let diffs = first.diff(&second);
     // diffs is now a Vec of differences, with length
     // equal to number of changed/unskipped fields
     assert_eq!(diffs.len(), 1);
@@ -34,16 +34,17 @@ fn test_example() {
     assert_ne!(diffed, second);
 }
 
+
+#[derive(Debug, PartialEq, Clone, Difference)]
+pub struct Test {
+    test1: i32,
+    test2: String,
+    test3: Vec<i32>,
+    test4: f32,
+}
+
 mod derive {
     use super::*;
-
-    #[derive(Debug, PartialEq, Clone, Difference)]
-    pub struct Test {
-        test1: i32,
-        test2: String,
-        test3: Vec<i32>,
-        test4: f32,
-    }
 
     #[test]
     fn test_derive() {
@@ -61,7 +62,7 @@ mod derive {
             test4: 3.14,
         };
 
-        let diffs = second.diff(&first);
+        let diffs = first.diff(&second);
         let diffed = first.apply(diffs);
 
         assert_eq!(diffed, second);
@@ -92,7 +93,7 @@ mod derive {
             test4: 3.14,
         };
 
-        let diffs = second.diff(&first);
+        let diffs = first.diff(&second);
         let diffed = first.apply(diffs);
 
         //check that all except the skipped are changed
@@ -122,7 +123,7 @@ mod derive {
                 test4: 3.14,
             };
 
-            let diffs = second.diff(&first);
+            let diffs = first.diff(&second);
             let diffed = first.apply(diffs);
 
             assert_eq!(diffed, second);
@@ -158,13 +159,13 @@ mod derive {
             },
         };
 
-        let diffs = second.diff(&first);
+        let diffs = first.diff(&second);
         assert_eq!(diffs.len(), 2);
 
         if let __TestRecurseStructDiffEnum::test2(val) = &diffs[1] {
             assert_eq!(val.len(), 2);
         } else {
-            panic!("Recursion faliure");
+            panic!("Recursion failure");
         }
 
         let diffed = first.apply(diffs);
@@ -176,6 +177,8 @@ mod derive {
 #[cfg(all(test, feature = "nanoserde"))]
 mod nanoserde_serialize {
     use structdiff::{Difference, StructDiff};
+    use super::Test;
+
     #[derive(Debug, PartialEq, Clone, Difference)]
     struct TestSkip {
         test1: i32,
@@ -201,7 +204,7 @@ mod nanoserde_serialize {
             test4: 3.14,
         };
 
-        let diffs = second.diff(&first);
+        let diffs = first.diff(&second);
         let ser = SerBin::serialize_bin(&diffs);
         let diffed = first.apply(DeBin::deserialize_bin(&ser).unwrap());
 
@@ -211,11 +214,57 @@ mod nanoserde_serialize {
         assert_ne!(diffed.test3, second.test3);
         assert_eq!(diffed.test4, second.test4);
     }
+
+    #[test]
+    fn test_recurse() {
+        #[derive(Debug, PartialEq, Clone, Difference)]
+        struct TestRecurse {
+            test1: i32,
+            #[difference(recurse)]
+            test2: Test,
+        }
+
+        let first = TestRecurse {
+            test1: 0,
+            test2: Test {
+                test1: 0,
+                test2: String::new(),
+                test3: Vec::new(),
+                test4: 0.0,
+            },
+        };
+
+        let second = TestRecurse {
+            test1: 1,
+            test2: Test {
+                test1: 2,
+                test2: String::new(),
+                test3: Vec::new(),
+                test4: 3.14,
+            },
+        };
+
+        let diffs = first.diff(&second);
+        assert_eq!(diffs.len(), 2);
+
+        if let __TestRecurseStructDiffEnum::test2(val) = &diffs[1] {
+            assert_eq!(val.len(), 2);
+        } else {
+            panic!("Recursion failure");
+        }
+
+        let ser = SerBin::serialize_bin(&diffs);
+        let diffed = first.apply(DeBin::deserialize_bin(&ser).unwrap());
+
+        assert_eq!(diffed, second);
+    }
 }
 
 #[cfg(all(test, feature = "serde"))]
 mod serde_serialize {
     use structdiff::{Difference, StructDiff};
+    use super::Test;
+    
     #[derive(Debug, PartialEq, Clone, Difference)]
     struct TestSkip {
         test1: i32,
@@ -241,7 +290,7 @@ mod serde_serialize {
             test4: 3.14,
         };
 
-        let diffs = second.diff(&first);
+        let diffs = first.diff(&second);
         let ser = serde_json::to_string(&diffs).unwrap();
         let diffed = first.apply(serde_json::from_str(&ser).unwrap());
 
@@ -250,5 +299,50 @@ mod serde_serialize {
         assert_eq!(diffed.test2, second.test2);
         assert_ne!(diffed.test3, second.test3);
         assert_eq!(diffed.test4, second.test4);
+    }
+
+    #[test]
+    fn test_recurse() {
+        #[derive(Debug, PartialEq, Clone, Difference)]
+        struct TestRecurse {
+            test1: i32,
+            #[difference(recurse)]
+            test2: Test,
+        }
+
+        let first = TestRecurse {
+            test1: 0,
+            test2: Test {
+                test1: 0,
+                test2: String::new(),
+                test3: Vec::new(),
+                test4: 0.0,
+            },
+        };
+
+        let second = TestRecurse {
+            test1: 1,
+            test2: Test {
+                test1: 2,
+                test2: String::new(),
+                test3: Vec::new(),
+                test4: 3.14,
+            },
+        };
+
+        let diffs = first.diff(&second);
+        assert_eq!(diffs.len(), 2);
+
+        if let __TestRecurseStructDiffEnum::test2(val) = &diffs[1] {
+            assert_eq!(val.len(), 2);
+        } else {
+            panic!("Recursion failure");
+        }
+
+        let diffs = first.diff(&second);
+        let ser = serde_json::to_string(&diffs).unwrap();
+        let diffed = first.apply(serde_json::from_str(&ser).unwrap());
+
+        assert_eq!(diffed, second);
     }
 }
