@@ -27,7 +27,7 @@ let second = Example {
     field3: String::from("Hello Diff"),
 };
 
-let diffs = second.diff(&first);
+let diffs = first.diff(&second);
 // diffs is now a Vec of differences, with length 
 // equal to number of changed/unskipped fields
 assert_eq!(diffs.len(), 1);
