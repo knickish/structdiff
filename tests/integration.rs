@@ -1,5 +1,4 @@
 use structdiff::{Difference, StructDiff};
-#[cfg(not(feature="nanoserde"))]
 use std::collections::{HashSet, LinkedList};
 
 #[test]
@@ -182,45 +181,37 @@ mod derive {
         struct TestCollection {
             #[difference(collection_strategy = "unordered_hash")]
             test1: Vec<i32>,
-            #[cfg(not(feature="nanoserde"))]
             #[difference(collection_strategy = "unordered_hash")]
             test2: HashSet<i32>,
-            #[cfg(not(feature="nanoserde"))]
             #[difference(collection_strategy = "unordered_hash")]
             test3: LinkedList<i32>,
         }
 
         let first = TestCollection {
             test1: vec![10],
-            #[cfg(not(feature="nanoserde"))]
             test3: vec![10, 15, 17].into_iter().collect(),
             ..Default::default()
         };
 
         let second = TestCollection {
             test1: Vec::default(),
-            #[cfg(not(feature="nanoserde"))]
             test2: vec![10].into_iter().collect(),
-            #[cfg(not(feature="nanoserde"))]
             test3: vec![10, 15, 17, 19].into_iter().collect(),
         };
 
         let diffs = first.diff(&second);
 
-        #[cfg(not(feature="nanoserde"))]
         if let __TestCollectionStructDiffEnum::test3(val) = &diffs[2] {
             assert_eq!(val.len(), 1);
         } else {
             panic!("Recursion failure");
         }
         
-        let diffed = first.apply(dbg!(diffs));
+        let diffed = first.apply(diffs);
 
         use assert_unordered::assert_eq_unordered;
         assert_eq_unordered!(diffed.test1, second.test1);
-        #[cfg(not(feature="nanoserde"))]
         assert_eq_unordered!(diffed.test2, second.test2);
-        #[cfg(not(feature="nanoserde"))]
         assert_eq_unordered!(diffed.test3, second.test3);
     }
 
@@ -229,6 +220,8 @@ mod derive {
 
 #[cfg(all(test, feature = "nanoserde"))]
 mod nanoserde_serialize {
+    use std::collections::{LinkedList, HashSet};
+
     use super::Test;
     use structdiff::{Difference, StructDiff};
 
@@ -318,33 +311,43 @@ mod nanoserde_serialize {
         struct TestCollection {
             #[difference(collection_strategy = "unordered_hash")]
             test1: Vec<i32>,
+            #[difference(collection_strategy = "unordered_hash")]
+            test2: HashSet<i32>,
+            #[difference(collection_strategy = "unordered_hash")]
+            test3: LinkedList<i32>,
         }
 
         let first = TestCollection {
-            test1: vec![10, 15, 17],
+            test1: vec![10],
+            test3: vec![10, 15, 17].into_iter().collect(),
+            ..Default::default()
         };
 
         let second = TestCollection {
-            test1: vec![10, 15, 17, 19],
+            test1: Vec::default(),
+            test2: vec![10].into_iter().collect(),
+            test3: vec![10, 15, 17, 19].into_iter().collect(),
         };
 
         let diffs = first.diff(&second);
 
-        let __TestCollectionStructDiffEnum::test1(val) = &diffs[0];
-        dbg!(&diffs);
-        assert_eq!(val.len(), 1);
+        if let __TestCollectionStructDiffEnum::test3(val) = &diffs[2] {
+            assert_eq!(val.len(), 1);
+        } else {
+            panic!("Recursion failure");
+        }
         
         let ser = SerBin::serialize_bin(&diffs);
         let diffed = first.apply(DeBin::deserialize_bin(&ser).unwrap());
 
         use assert_unordered::assert_eq_unordered;
         assert_eq_unordered!(diffed.test1, second.test1);
+        assert_eq_unordered!(diffed.test2, second.test2);
     }
 }
 
 #[cfg(all(test, feature = "serde"))]
 mod serde_serialize {
-    #[cfg(not(feature="nanoserde"))]
     use std::collections::{HashSet, LinkedList};
 
     use super::Test;
@@ -437,32 +440,26 @@ mod serde_serialize {
         struct TestCollection {
             #[difference(collection_strategy = "unordered_hash")]
             test1: Vec<i32>,
-            #[cfg(not(feature="nanoserde"))]
             #[difference(collection_strategy = "unordered_hash")]
             test2: HashSet<i32>,
-            #[cfg(not(feature="nanoserde"))]
             #[difference(collection_strategy = "unordered_hash")]
             test3: LinkedList<i32>,
         }
 
         let first = TestCollection {
             test1: vec![10],
-            #[cfg(not(feature="nanoserde"))]
             test3: vec![10, 15, 17].into_iter().collect(),
             ..Default::default()
         };
 
         let second = TestCollection {
             test1: Vec::default(),
-            #[cfg(not(feature="nanoserde"))]
             test2: vec![10].into_iter().collect(),
-            #[cfg(not(feature="nanoserde"))]
             test3: vec![10, 15, 17, 19].into_iter().collect(),
         };
 
         let diffs = first.diff(&second);
 
-        #[cfg(not(feature="nanoserde"))]
         if let __TestCollectionStructDiffEnum::test3(val) = &diffs[2] {
             assert_eq!(val.len(), 1);
         } else {
@@ -474,9 +471,7 @@ mod serde_serialize {
         
         use assert_unordered::assert_eq_unordered;
         assert_eq_unordered!(diffed.test1, second.test1);
-        #[cfg(not(feature="nanoserde"))]
         assert_eq_unordered!(diffed.test2, second.test2);
-        #[cfg(not(feature="nanoserde"))]
         assert_eq_unordered!(diffed.test3, second.test3);
     }
 }
