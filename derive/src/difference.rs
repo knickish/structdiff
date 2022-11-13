@@ -39,7 +39,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
             match (attrs_recurse(&field.attributes), attrs_collection(&field.attributes)) {
                 (true, None)  => { // Recurse inwards and generate a Vec<SubStructDiff> instead of cloning the entire thing
                     let typename = format!("__{}StructDiffVec", field_name);
-                    l!(type_aliases, "///Generated aliases fron StructDiff\n type {} = Vec<<{} as StructDiff>::Diff>;", typename, field.ty.path);
+                    l!(type_aliases, "///Generated aliases from StructDiff\n type {} = Vec<<{} as StructDiff>::Diff>;", typename, field.ty.path);
 
                     l!(diff_enum_body, " {}({}),", field_name, typename);
 
