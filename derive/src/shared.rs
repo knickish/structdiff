@@ -30,7 +30,9 @@ pub fn attrs_collection(attributes: &[crate::parse::Attribute]) -> Option<Collec
         if attr.tokens.len() == 2 && attr.tokens[0] == "collection_strategy" {
             let strategy = match attr.tokens[1].clone().as_str() {
                 "unordered_hash" => CollectionStrategy::UnorderedHash,
-                _ => {return None;}
+                _ => {
+                    return None;
+                }
             };
             Some(strategy)
         } else {

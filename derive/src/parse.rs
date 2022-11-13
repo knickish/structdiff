@@ -42,7 +42,7 @@ pub struct Field {
 pub struct Type {
     pub is_option: bool,
     pub path: String,
-    pub wraps: Option<String>
+    pub wraps: Option<String>,
 }
 
 #[derive(Debug)]
@@ -203,7 +203,7 @@ fn next_type<T: Iterator<Item = TokenTree>>(
         let mut tuple_type = Type {
             is_option: false,
             path: "".to_string(),
-            wraps: None
+            wraps: None,
         };
 
         while let Some(next_ty) = next_type(&mut group, generic_typenames) {
@@ -238,13 +238,13 @@ fn next_type<T: Iterator<Item = TokenTree>>(
             Some(Type {
                 path: generic_type.path.clone(),
                 is_option: true,
-                wraps: Some(generic_type.path.clone())
+                wraps: Some(generic_type.path.clone()),
             })
         } else {
             Some(Type {
                 path: format!("{}<{}>", ty, generic_type.path.clone()),
                 is_option: false,
-                wraps: Some(generic_type.path)
+                wraps: Some(generic_type.path),
             })
         }
     } else {
@@ -252,7 +252,7 @@ fn next_type<T: Iterator<Item = TokenTree>>(
         Some(Type {
             path: ty.clone(),
             is_option: false,
-            wraps: None
+            wraps: None,
         })
     }
 }

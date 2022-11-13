@@ -2,7 +2,7 @@ use alloc::format;
 use alloc::string::String;
 
 use crate::parse::Struct;
-use crate::shared::{attrs_recurse, attrs_skip, attrs_collection};
+use crate::shared::{attrs_collection, attrs_recurse, attrs_skip};
 
 use proc_macro::TokenStream;
 
@@ -110,7 +110,6 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                     );
                     use_collections = true;
                 },
-                
             }
         });
 
@@ -120,7 +119,9 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
     let nanoserde_hack = String::from("\nuse nanoserde::*;");
 
     format!(
-        "{type_aliases}
+        "const _: () = {{
+        use structdiff::collections::*;
+        {type_aliases}
         {nanoserde_hack}
         
         /// Generated type from StructDiff
@@ -144,7 +145,8 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                     {apply_single_body}
                 }}
             }}
-        }}",
+        }}
+        }};",
         type_aliases = type_aliases,
         nanoserde_hack = nanoserde_hack,
         derives = derives,

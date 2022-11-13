@@ -45,8 +45,6 @@ pub struct Test {
 
 // #[cfg(test)]
 mod derive {
-    use structdiff::collections::UnorderedCollectionDiff;
-
     use super::*;
 
     #[test]
@@ -165,7 +163,10 @@ mod derive {
         let diffs = first.diff(&second);
         assert_eq!(diffs.len(), 2);
 
-        if let __TestRecurseStructDiffEnum::test2(val) = &diffs[1] {
+        type TestRecurseFields = <TestRecurse as StructDiff>::Diff;
+
+        if let TestRecurseFields::test2(val) = &diffs[1] {
+            dbg!(&val);
             assert_eq!(val.len(), 2);
         } else {
             panic!("Recursion failure");
@@ -202,20 +203,24 @@ mod derive {
 
         let diffs = first.diff(&second);
 
-        if let __TestCollectionStructDiffEnum::test1(UnorderedCollectionDiff::Replace(val)) =
-            &diffs[0]
+        type TestCollectionFields = <TestCollection as StructDiff>::Diff;
+
+        if let TestCollectionFields::test1(
+            structdiff::collections::UnorderedCollectionDiff::Replace(val),
+        ) = &diffs[0]
         {
             assert_eq!(val.len(), 0);
         } else {
-            panic!("Recursion failure");
+            panic!("Collection strategy failure");
         }
 
-        if let __TestCollectionStructDiffEnum::test3(UnorderedCollectionDiff::Modify(val)) =
-            &diffs[2]
+        if let TestCollectionFields::test3(
+            structdiff::collections::UnorderedCollectionDiff::Modify(val),
+        ) = &diffs[2]
         {
             assert_eq!(val.len(), 1);
         } else {
-            panic!("Recursion failure");
+            panic!("Collection strategy failure");
         }
 
         let diffed = first.apply(diffs);
@@ -229,10 +234,11 @@ mod derive {
 
 #[cfg(all(test, feature = "nanoserde"))]
 mod nanoserde_serialize {
+    use nanoserde::{DeBin, SerBin};
     use std::collections::{HashSet, LinkedList};
 
     use super::Test;
-    use structdiff::{collections::UnorderedCollectionDiff, Difference, StructDiff};
+    use structdiff::{Difference, StructDiff};
 
     #[derive(Debug, PartialEq, Clone, Difference)]
     struct TestSkip {
@@ -302,7 +308,10 @@ mod nanoserde_serialize {
         let diffs = first.diff(&second);
         assert_eq!(diffs.len(), 2);
 
-        if let __TestRecurseStructDiffEnum::test2(val) = &diffs[1] {
+        type TestRecurseFields = <TestRecurse as StructDiff>::Diff;
+
+        if let TestRecurseFields::test2(val) = &diffs[1] {
+            dbg!(&val);
             assert_eq!(val.len(), 2);
         } else {
             panic!("Recursion failure");
@@ -340,20 +349,24 @@ mod nanoserde_serialize {
 
         let diffs = first.diff(&second);
 
-        if let __TestCollectionStructDiffEnum::test1(UnorderedCollectionDiff::Replace(val)) =
-            &diffs[0]
+        type TestCollectionFields = <TestCollection as StructDiff>::Diff;
+
+        if let TestCollectionFields::test1(
+            structdiff::collections::UnorderedCollectionDiff::Replace(val),
+        ) = &diffs[0]
         {
             assert_eq!(val.len(), 0);
         } else {
-            panic!("Recursion failure");
+            panic!("Collection strategy failure");
         }
 
-        if let __TestCollectionStructDiffEnum::test3(UnorderedCollectionDiff::Modify(val)) =
-            &diffs[2]
+        if let TestCollectionFields::test3(
+            structdiff::collections::UnorderedCollectionDiff::Modify(val),
+        ) = &diffs[2]
         {
             assert_eq!(val.len(), 1);
         } else {
-            panic!("Recursion failure");
+            panic!("Collection strategy failure");
         }
 
         let ser = SerBin::serialize_bin(&diffs);
@@ -370,7 +383,7 @@ mod serde_serialize {
     use std::collections::{HashSet, LinkedList};
 
     use super::Test;
-    use structdiff::{collections::UnorderedCollectionDiff, Difference, StructDiff};
+    use structdiff::{Difference, StructDiff};
 
     #[derive(Debug, PartialEq, Clone, Difference)]
     struct TestSkip {
@@ -440,7 +453,10 @@ mod serde_serialize {
         let diffs = first.diff(&second);
         assert_eq!(diffs.len(), 2);
 
-        if let __TestRecurseStructDiffEnum::test2(val) = &diffs[1] {
+        type TestRecurseFields = <TestRecurse as StructDiff>::Diff;
+
+        if let TestRecurseFields::test2(val) = &diffs[1] {
+            dbg!(&val);
             assert_eq!(val.len(), 2);
         } else {
             panic!("Recursion failure");
@@ -479,20 +495,24 @@ mod serde_serialize {
 
         let diffs = first.diff(&second);
 
-        if let __TestCollectionStructDiffEnum::test1(UnorderedCollectionDiff::Replace(val)) =
-            &diffs[0]
+        type TestCollectionFields = <TestCollection as StructDiff>::Diff;
+
+        if let TestCollectionFields::test1(
+            structdiff::collections::UnorderedCollectionDiff::Replace(val),
+        ) = &diffs[0]
         {
             assert_eq!(val.len(), 0);
         } else {
-            panic!("Recursion failure");
+            panic!("Collection strategy failure");
         }
 
-        if let __TestCollectionStructDiffEnum::test3(UnorderedCollectionDiff::Modify(val)) =
-            &diffs[2]
+        if let TestCollectionFields::test3(
+            structdiff::collections::UnorderedCollectionDiff::Modify(val),
+        ) = &diffs[2]
         {
             assert_eq!(val.len(), 1);
         } else {
-            panic!("Recursion failure");
+            panic!("Collection strategy failure");
         }
 
         let ser = serde_json::to_string(&diffs).unwrap();
