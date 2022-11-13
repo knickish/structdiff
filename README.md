@@ -43,11 +43,12 @@ For more examples take a look at [integration tests](/tests)
 
 ## Derive macro attributes
 - `#[difference(skip)]`     - Do not consider this field when creating a diff
-- `#[difference(recurse)]`  - Generate a StructDiff for this field when creating a diff 
-rather than cloning entire instance
+- `#[difference(recurse)]`  - Generate a StructDiff for this field when creating a diff
+- `#[difference(collection_strategy = "{}")` 
+    - `unordered_hash` - Generates a changeset for collections of items which implement `Hash + Eq`, rather than cloning the entire list. (currently works for `Vec`, `BTreeSet`, `LinkedList`, and `HashSet`)
 
 ## Optional features
 - [`nanoserde`, `serde`] - Serialization of `Difference` derived associated types
 
 ### Development status 
-This is being actively worked on. PRs will be accepted for either more tests or functionality.
+This is being actively worked on (especially on collections strategies). PRs will be accepted for either more tests or functionality.

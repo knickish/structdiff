@@ -2,12 +2,13 @@ use alloc::format;
 use alloc::string::String;
 
 use crate::parse::Struct;
-use crate::shared::{attrs_recurse, attrs_skip};
+use crate::shared::{attrs_collection, attrs_recurse, attrs_skip};
 
 use proc_macro::TokenStream;
 
 pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
     let derives: String = vec![
+        "Debug",
         "Clone",
         #[cfg(feature = "nanoserde")]
         "nanoserde::SerBin",
@@ -24,6 +25,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
     let mut diff_body = String::new();
     let mut apply_single_body = String::new();
     let mut type_aliases = String::new();
+    let mut use_collections = false;
     let enum_name = String::from("__".to_owned() + struct_.name.as_str() + "StructDiffEnum");
 
     struct_
@@ -34,10 +36,10 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
         .for_each(|(index, field)| {
             let field_name = field.field_name.as_ref().unwrap();
 
-            match attrs_recurse(&field.attributes) {
-                true => { // Recurse inwards and generate a Vec<SubStructDiff> instead of cloning the entire thing
+            match (attrs_recurse(&field.attributes), attrs_collection(&field.attributes)) {
+                (true, None)  => { // Recurse inwards and generate a Vec<SubStructDiff> instead of cloning the entire thing
                     let typename = format!("__{}StructDiffVec", field_name);
-                    l!(type_aliases, "type {} = Vec<<{} as StructDiff>::Diff>;", typename, field.ty.path);
+                    l!(type_aliases, "///Generated aliases from StructDiff\n type {} = Vec<<{} as StructDiff>::Diff>;", typename, field.ty.path);
 
                     l!(diff_enum_body, " {}({}),", field_name, typename);
 
@@ -61,7 +63,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                         field_name
                     );
                 },
-                false => {
+                (false, None) => {
                     l!(diff_enum_body, " {}({}),", field_name, field.ty.path);
 
                     l!(
@@ -81,7 +83,33 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                         field_name,
                         field_name
                     );
-                }
+                },
+                (true, Some(_)) => panic!("Recursion inside of collections is not yet supported"),
+                (false, Some(_)) => {
+                    l!(diff_enum_body, " {}(structdiff::collections::UnorderedCollectionDiff<{}>),", field_name, field.ty.wraps.clone().expect("Using collection strategy on a non-collection"));
+
+                    l!(
+                        apply_single_body,
+                        "Self::Diff::{}(__{}) => self.{} = structdiff::collections::apply_unordered_hashdiffs(std::mem::take(&mut self.{}).into_iter(), __{}).collect(),",
+                        field_name,
+                        index,
+                        field_name,
+                        field_name,
+                        index
+                    );
+
+                    l!(
+                        diff_body,
+                        "if let Some(list_diffs) = structdiff::collections::unordered_hashcmp(self.{}.iter(), updated.{}.iter()) {{
+                            diffs.push(Self::Diff::{}(list_diffs));
+                        }};"
+                        ,
+                        field_name,
+                        field_name,
+                        field_name
+                    );
+                    use_collections = true;
+                },
             }
         });
 
@@ -91,11 +119,12 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
     let nanoserde_hack = String::from("\nuse nanoserde::*;");
 
     format!(
-        "///Generated aliases fron StructDiff
+        "const _: () = {{
+        use structdiff::collections::*;
         {type_aliases}
+        {nanoserde_hack}
         
         /// Generated type from StructDiff
-        {nanoserde_hack}
         #[derive({derives})]
         pub enum {enum_name} {{
             {enum_body}
@@ -116,7 +145,8 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                     {apply_single_body}
                 }}
             }}
-        }}",
+        }}
+        }};",
         type_aliases = type_aliases,
         nanoserde_hack = nanoserde_hack,
         derives = derives,

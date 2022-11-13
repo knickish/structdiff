@@ -1,33 +1,35 @@
 pub use structdiff_derive::Difference;
 
+pub mod collections;
+
 pub trait StructDiff: PartialEq + Clone {
     /// A generated type used to represent the difference
     /// between two instances of a struct which implements
     /// the StructDiff trait.
     type Diff;
 
-    /// Generate a diff between two instances of a struct. 
-    /// This diff may be serialized if one of the serialization 
+    /// Generate a diff between two instances of a struct.
+    /// This diff may be serialized if one of the serialization
     /// features is enabled.
-    /// 
+    ///
     /// ```
     /// use structdiff::{Difference, StructDiff};
-    /// 
+    ///
     /// #[derive(Debug, PartialEq, Clone, Difference)]
     /// struct Example {
     ///     field1: f64,
     /// }
-    /// 
+    ///
     /// let first = Example {
     ///     field1: 0.0,
     /// };
-    /// 
+    ///
     /// let second = Example {
     ///     field1: 3.14,
     /// };
-    /// 
+    ///
     /// let diffs = first.diff(&second);
-    /// 
+    ///
     /// let diffed = first.apply(diffs);
     /// assert_eq!(diffed, second);
     /// ```
