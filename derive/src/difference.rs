@@ -25,7 +25,6 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
     let mut diff_body = String::new();
     let mut apply_single_body = String::new();
     let mut type_aliases = String::new();
-    let mut use_collections = false;
     let enum_name = String::from("__".to_owned() + struct_.name.as_str() + "StructDiffEnum");
 
     struct_
@@ -86,7 +85,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                 },
                 (true, Some(_)) => panic!("Recursion inside of collections is not yet supported"),
                 (false, Some(_)) => {
-                    l!(diff_enum_body, " {}(structdiff::collections::UnorderedCollectionDiff<{}>),", field_name, field.ty.wraps.clone().expect("Using collection strategy on a non-collection"));
+                    l!(diff_enum_body, " {}(structdiff::collections::UnorderedArrayLikeDiff<{}>),", field_name, field.ty.wraps.clone().expect("Using collection strategy on a non-collection"));
 
                     l!(
                         apply_single_body,
@@ -108,7 +107,6 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                         field_name,
                         field_name
                     );
-                    use_collections = true;
                 },
             }
         });

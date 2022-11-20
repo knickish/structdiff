@@ -12,7 +12,7 @@ serde               = { version = "^1.0.0", optional = true, features = ["derive
 structdiff-derive   = { path = "derive", version = "=0.4.1" }
 
 [features]
-"default"   = []
+"default"   = ["nanoserde", "serde"]
 "nanoserde" = ["dep:nanoserde", "structdiff-derive/nanoserde"]
 "serde"     = ["dep:serde", "structdiff-derive/serde"]
 

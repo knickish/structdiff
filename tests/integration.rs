@@ -181,11 +181,11 @@ mod derive {
     fn test_collection_strategies() {
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
         struct TestCollection {
-            #[difference(collection_strategy = "unordered_hash")]
+            #[difference(collection)]
             test1: Vec<i32>,
-            #[difference(collection_strategy = "unordered_hash")]
+            #[difference(collection)]
             test2: HashSet<i32>,
-            #[difference(collection_strategy = "unordered_hash")]
+            #[difference(collection)]
             test3: LinkedList<i32>,
         }
 
@@ -202,27 +202,6 @@ mod derive {
         };
 
         let diffs = first.diff(&second);
-
-        type TestCollectionFields = <TestCollection as StructDiff>::Diff;
-
-        if let TestCollectionFields::test1(
-            structdiff::collections::UnorderedCollectionDiff::Replace(val),
-        ) = &diffs[0]
-        {
-            assert_eq!(val.len(), 0);
-        } else {
-            panic!("Collection strategy failure");
-        }
-
-        if let TestCollectionFields::test3(
-            structdiff::collections::UnorderedCollectionDiff::Modify(val),
-        ) = &diffs[2]
-        {
-            assert_eq!(val.len(), 1);
-        } else {
-            panic!("Collection strategy failure");
-        }
-
         let diffed = first.apply(diffs);
 
         use assert_unordered::assert_eq_unordered;
@@ -327,11 +306,11 @@ mod nanoserde_serialize {
     fn test_collection_strategies() {
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
         struct TestCollection {
-            #[difference(collection_strategy = "unordered_hash")]
+            #[difference(collection)]
             test1: Vec<i32>,
-            #[difference(collection_strategy = "unordered_hash")]
+            #[difference(collection)]
             test2: HashSet<i32>,
-            #[difference(collection_strategy = "unordered_hash")]
+            #[difference(collection)]
             test3: LinkedList<i32>,
         }
 
@@ -348,27 +327,6 @@ mod nanoserde_serialize {
         };
 
         let diffs = first.diff(&second);
-
-        type TestCollectionFields = <TestCollection as StructDiff>::Diff;
-
-        if let TestCollectionFields::test1(
-            structdiff::collections::UnorderedCollectionDiff::Replace(val),
-        ) = &diffs[0]
-        {
-            assert_eq!(val.len(), 0);
-        } else {
-            panic!("Collection strategy failure");
-        }
-
-        if let TestCollectionFields::test3(
-            structdiff::collections::UnorderedCollectionDiff::Modify(val),
-        ) = &diffs[2]
-        {
-            assert_eq!(val.len(), 1);
-        } else {
-            panic!("Collection strategy failure");
-        }
-
         let ser = SerBin::serialize_bin(&diffs);
         let diffed = first.apply(DeBin::deserialize_bin(&ser).unwrap());
 
@@ -473,11 +431,11 @@ mod serde_serialize {
     fn test_collection_strategies() {
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
         struct TestCollection {
-            #[difference(collection_strategy = "unordered_hash")]
+            #[difference(collection)]
             test1: Vec<i32>,
-            #[difference(collection_strategy = "unordered_hash")]
+            #[difference(collection)]
             test2: HashSet<i32>,
-            #[difference(collection_strategy = "unordered_hash")]
+            #[difference(collection)]
             test3: LinkedList<i32>,
         }
 
@@ -494,27 +452,6 @@ mod serde_serialize {
         };
 
         let diffs = first.diff(&second);
-
-        type TestCollectionFields = <TestCollection as StructDiff>::Diff;
-
-        if let TestCollectionFields::test1(
-            structdiff::collections::UnorderedCollectionDiff::Replace(val),
-        ) = &diffs[0]
-        {
-            assert_eq!(val.len(), 0);
-        } else {
-            panic!("Collection strategy failure");
-        }
-
-        if let TestCollectionFields::test3(
-            structdiff::collections::UnorderedCollectionDiff::Modify(val),
-        ) = &diffs[2]
-        {
-            assert_eq!(val.len(), 1);
-        } else {
-            panic!("Collection strategy failure");
-        }
-
         let ser = serde_json::to_string(&diffs).unwrap();
         let diffed = first.apply(serde_json::from_str(&ser).unwrap());
 
