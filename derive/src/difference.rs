@@ -2,7 +2,7 @@ use alloc::format;
 use alloc::string::String;
 
 use crate::parse::Struct;
-use crate::shared::{attrs_collection, attrs_recurse, attrs_skip};
+use crate::shared::{attrs_recurse, attrs_skip, attrs_collection_type};
 
 use proc_macro::TokenStream;
 
@@ -35,7 +35,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
         .for_each(|(index, field)| {
             let field_name = field.field_name.as_ref().unwrap();
 
-            match (attrs_recurse(&field.attributes), attrs_collection(&field.attributes)) {
+            match (attrs_recurse(&field.attributes), attrs_collection_type(&field.attributes)) {
                 (true, None)  => { // Recurse inwards and generate a Vec<SubStructDiff> instead of cloning the entire thing
                     let typename = format!("__{}StructDiffVec", field_name);
                     l!(type_aliases, "///Generated aliases from StructDiff\n type {} = Vec<<{} as StructDiff>::Diff>;", typename, field.ty.path);
@@ -84,30 +84,57 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                     );
                 },
                 (true, Some(_)) => panic!("Recursion inside of collections is not yet supported"),
-                (false, Some(_)) => {
-                    l!(diff_enum_body, " {}(structdiff::collections::UnorderedArrayLikeDiff<{}>),", field_name, field.ty.wraps.clone().expect("Using collection strategy on a non-collection"));
+                (false, Some(strat)) => match strat {
+                    crate::shared::CollectionStrategy::UnorderedArrayLikeHash => {
+                        l!(diff_enum_body, " {}(structdiff::collections::unordered_array_like::UnorderedArrayLikeDiff<{}>),", field_name, field.ty.wraps.clone().expect("Using collection strategy on a non-collection"));
 
-                    l!(
-                        apply_single_body,
-                        "Self::Diff::{}(__{}) => self.{} = structdiff::collections::apply_unordered_hashdiffs(std::mem::take(&mut self.{}).into_iter(), __{}).collect(),",
-                        field_name,
-                        index,
-                        field_name,
-                        field_name,
-                        index
-                    );
+                        l!(
+                            apply_single_body,
+                            "Self::Diff::{}(__{}) => self.{} = structdiff::collections::unordered_array_like::apply_unordered_hashdiffs(std::mem::take(&mut self.{}).into_iter(), __{}).collect(),",
+                            field_name,
+                            index,
+                            field_name,
+                            field_name,
+                            index
+                        );
 
-                    l!(
-                        diff_body,
-                        "if let Some(list_diffs) = structdiff::collections::unordered_hashcmp(self.{}.iter(), updated.{}.iter()) {{
-                            diffs.push(Self::Diff::{}(list_diffs));
-                        }};"
-                        ,
-                        field_name,
-                        field_name,
-                        field_name
-                    );
-                },
+                        l!(
+                            diff_body,
+                            "if let Some(list_diffs) = structdiff::collections::unordered_array_like::unordered_hashcmp(self.{}.iter(), updated.{}.iter()) {{
+                                diffs.push(Self::Diff::{}(list_diffs));
+                            }};"
+                            ,
+                            field_name,
+                            field_name,
+                            field_name
+                        );
+                    },
+                    crate::shared::CollectionStrategy::UnorderedMapLikeHash(_) => {
+                        // panic!("here");
+                        l!(diff_enum_body, " {}(structdiff::collections::unordered_map_like::UnorderedMapLikeDiff<{}>),", field_name, field.ty.wraps.clone().expect("Using collection strategy on a non-collection"));
+
+                        l!(
+                            apply_single_body,
+                            "Self::Diff::{}(__{}) => self.{} = structdiff::collections::unordered_map_like::apply_unordered_hashdiffs(std::mem::take(&mut self.{}).into_iter(), __{}).collect(),",
+                            field_name,
+                            index,
+                            field_name,
+                            field_name,
+                            index
+                        );
+
+                        l!(
+                            diff_body,
+                            "if let Some(list_diffs) = structdiff::collections::unordered_map_like::unordered_hashcmp(self.{}.iter(), updated.{}.iter()) {{
+                                diffs.push(Self::Diff::{}(list_diffs));
+                            }};"
+                            ,
+                            field_name,
+                            field_name,
+                            field_name
+                        );
+                    }
+                }
             }
         });
 

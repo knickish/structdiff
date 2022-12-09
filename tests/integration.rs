@@ -181,11 +181,11 @@ mod derive {
     fn test_collection_strategies() {
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
         struct TestCollection {
-            #[difference(collection)]
+            #[difference(collection_strategy="unordered_array_like")]
             test1: Vec<i32>,
-            #[difference(collection)]
+            #[difference(collection_strategy="unordered_array_like")]
             test2: HashSet<i32>,
-            #[difference(collection)]
+            #[difference(collection_strategy="unordered_array_like")]
             test3: LinkedList<i32>,
         }
 
@@ -306,11 +306,11 @@ mod nanoserde_serialize {
     fn test_collection_strategies() {
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
         struct TestCollection {
-            #[difference(collection)]
+            #[difference(collection_strategy="unordered_array_like")]
             test1: Vec<i32>,
-            #[difference(collection)]
+            #[difference(collection_strategy="unordered_array_like")]
             test2: HashSet<i32>,
-            #[difference(collection)]
+            #[difference(collection_strategy="unordered_array_like")]
             test3: LinkedList<i32>,
         }
 
@@ -431,11 +431,11 @@ mod serde_serialize {
     fn test_collection_strategies() {
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
         struct TestCollection {
-            #[difference(collection)]
+            #[difference(collection_strategy="unordered_array_like")]
             test1: Vec<i32>,
-            #[difference(collection)]
+            #[difference(collection_strategy="unordered_array_like")]
             test2: HashSet<i32>,
-            #[difference(collection)]
+            #[difference(collection_strategy="unordered_array_like")]
             test3: LinkedList<i32>,
         }
 

@@ -33,18 +33,18 @@ pub fn attrs_skip(attributes: &[crate::parse::Attribute]) -> bool {
         .any(|attr| attr.tokens.len() == 1 && attr.tokens[0] == "skip")
 }
 
-pub fn attrs_collection(attributes: &[crate::parse::Attribute]) -> Option<CollectionStrategy> {
-    for attr in attributes.iter(){
-        if attr.tokens.len() == 1 && attr.tokens[0] == "collection" {
-            let strategy = match attrs_collection_type(attributes) {
-                None => Some(CollectionStrategy::UnorderedArrayLikeHash),
-                Some(val) => Some(val)
-            };
-            return strategy;
-        }
-    }
-    return None;
-}
+// pub fn attrs_collection(attributes: &[crate::parse::Attribute]) -> Option<CollectionStrategy> {
+//     for attr in attributes.iter(){
+//         if attr.tokens.len() == 1 && attr.tokens[0] == "collection" {
+//             let strategy = match attrs_collection_type(attributes) {
+//                 None => Some(CollectionStrategy::UnorderedArrayLikeHash),
+//                 Some(val) => Some(val)
+//             };
+//             return strategy;
+//         }
+//     }
+//     return None;
+// }
 
 pub fn attrs_collection_type(attributes: &[crate::parse::Attribute]) -> Option<CollectionStrategy> {
     attributes.iter().find_map(|attr| {
