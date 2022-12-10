@@ -1,6 +1,6 @@
 [package]
 name = "structdiff-derive"
-version = "0.4.1"
+version = "0.4.2"
 authors = ["Makepad <info@makepad.nl>", "Fedor <not.fl3@gmail.com>", "Kirk <knickish@gmail.com"]
 edition = "2018"
 description = "Fork of nanoserde's parsing library"
