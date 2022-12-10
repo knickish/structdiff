@@ -35,7 +35,12 @@ pub(crate) enum UnorderedMapLikeDiffInternal<K, V> {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct UnorderedMapLikeDiff<K, V>(UnorderedMapLikeDiffInternal<K, V>);
 
-fn collect_into_key_eq_map<'a, K: Hash + PartialEq + Eq + 'a, V: 'a, B: Iterator<Item = (&'a K, &'a V)>>(
+fn collect_into_key_eq_map<
+    'a,
+    K: Hash + PartialEq + Eq + 'a,
+    V: 'a,
+    B: Iterator<Item = (&'a K, &'a V)>,
+>(
     list: B,
 ) -> HashMap<&'a K, (&'a V, usize)> {
     let mut map: HashMap<&K, (&V, usize)> = HashMap::new();
@@ -43,14 +48,19 @@ fn collect_into_key_eq_map<'a, K: Hash + PartialEq + Eq + 'a, V: 'a, B: Iterator
         match map.get_mut(&key) {
             Some((_, count)) => *count += 1,
             None => {
-                map.insert(key,(value, 1_usize));
+                map.insert(key, (value, 1_usize));
             }
         }
     }
     map
 }
 
-fn collect_into_key_value_eq_map<'a, K: Hash + PartialEq + Eq + 'a, V: PartialEq + 'a, B: Iterator<Item = (&'a K, &'a V)>>(
+fn collect_into_key_value_eq_map<
+    'a,
+    K: Hash + PartialEq + Eq + 'a,
+    V: PartialEq + 'a,
+    B: Iterator<Item = (&'a K, &'a V)>,
+>(
     list: B,
 ) -> HashMap<&'a K, (&'a V, usize)> {
     let mut map: HashMap<&K, (&V, usize)> = HashMap::new();
@@ -58,10 +68,12 @@ fn collect_into_key_value_eq_map<'a, K: Hash + PartialEq + Eq + 'a, V: PartialEq
         match map.get_mut(&key) {
             Some((ref current_val, count)) => match current_val == &value {
                 true => *count += 1,
-                false => {map.insert(key,(value, 1_usize));}
+                false => {
+                    map.insert(key, (value, 1_usize));
+                }
             },
             None => {
-                map.insert(key,(value, 1_usize));
+                map.insert(key, (value, 1_usize));
             }
         }
     }
@@ -106,7 +118,7 @@ impl<K, V> UnorderedMapLikeChange<K, V> {
                     value: item.1,
                     count: val,
                 })
-            },
+            }
             (_, _) => unreachable!(),
         }
     }
@@ -124,49 +136,55 @@ pub fn unordered_hashcmp<
     key_only: bool,
 ) -> Option<UnorderedMapLikeDiff<K, V>> {
     let (mut previous, current) = if key_only {
-        (collect_into_key_eq_map(previous), collect_into_key_eq_map(current))
+        (
+            collect_into_key_eq_map(previous),
+            collect_into_key_eq_map(current),
+        )
     } else {
-        (collect_into_key_value_eq_map(previous), collect_into_key_value_eq_map(current))
+        (
+            collect_into_key_value_eq_map(previous),
+            collect_into_key_value_eq_map(current),
+        )
     };
 
     if (current.len() as isize) < ((previous.len() as isize) - (current.len() as isize)) {
-        return Some(UnorderedMapLikeDiff(
-            UnorderedMapLikeDiffInternal::Replace(
-                current
-                    .into_iter()
-                    .flat_map(|(k, (v, count))| std::iter::repeat((k.clone(), v.clone())).take(count))
-                    .collect(),
-            ),
-        ));
+        return Some(UnorderedMapLikeDiff(UnorderedMapLikeDiffInternal::Replace(
+            current
+                .into_iter()
+                .flat_map(|(k, (v, count))| std::iter::repeat((k.clone(), v.clone())).take(count))
+                .collect(),
+        )));
     }
 
     let mut ret: Vec<UnorderedMapLikeChange<K, V>> = vec![];
 
     for (&k, &(v, current_count)) in current.iter() {
         match previous.remove(&k) {
-            Some((prev_val, prev_count)) if prev_val == v => match (current_count as i128) - (prev_count as i128) {
-                add if add > 1 => ret.push(UnorderedMapLikeChange::new(
-                    (k.clone(), v.clone()),
-                    add as usize,
-                    Operation::Insert,
-                )),
-                add if add == 1 => ret.push(UnorderedMapLikeChange::new(
-                    (k.clone(), v.clone()),
-                    add as usize,
-                    Operation::Insert,
-                )),
-                sub if sub < 0 => ret.push(UnorderedMapLikeChange::new(
-                    (k.clone(), v.clone()),
-                    -sub as usize,
-                    Operation::Remove,
-                )),
-                sub if sub == -1 => ret.push(UnorderedMapLikeChange::new(
-                    (k.clone(), v.clone()),
-                    -sub as usize,
-                    Operation::Remove,
-                )),
-                _ => (),
-            },
+            Some((prev_val, prev_count)) if prev_val == v => {
+                match (current_count as i128) - (prev_count as i128) {
+                    add if add > 1 => ret.push(UnorderedMapLikeChange::new(
+                        (k.clone(), v.clone()),
+                        add as usize,
+                        Operation::Insert,
+                    )),
+                    add if add == 1 => ret.push(UnorderedMapLikeChange::new(
+                        (k.clone(), v.clone()),
+                        add as usize,
+                        Operation::Insert,
+                    )),
+                    sub if sub < 0 => ret.push(UnorderedMapLikeChange::new(
+                        (k.clone(), v.clone()),
+                        -sub as usize,
+                        Operation::Remove,
+                    )),
+                    sub if sub == -1 => ret.push(UnorderedMapLikeChange::new(
+                        (k.clone(), v.clone()),
+                        -sub as usize,
+                        Operation::Remove,
+                    )),
+                    _ => (),
+                }
+            }
             Some((prev_val, prev_count)) if prev_val != v => {
                 ret.push(UnorderedMapLikeChange::new(
                     (k.clone(), prev_val.clone()),
@@ -178,7 +196,7 @@ pub fn unordered_hashcmp<
                     current_count,
                     Operation::Insert,
                 ));
-            },
+            }
             Some(_) => unreachable!(),
             None => ret.push(UnorderedMapLikeChange::new(
                 (k.clone(), v.clone()),
@@ -198,9 +216,9 @@ pub fn unordered_hashcmp<
 
     match ret.is_empty() {
         true => None,
-        false => Some(UnorderedMapLikeDiff(
-            UnorderedMapLikeDiffInternal::Modify(ret),
-        )),
+        false => Some(UnorderedMapLikeDiff(UnorderedMapLikeDiffInternal::Modify(
+            ret,
+        ))),
     }
 }
 
@@ -220,10 +238,7 @@ pub fn apply_unordered_hashdiffs<
         UnorderedMapLikeDiff(UnorderedMapLikeDiffInternal::Modify(diffs)) => diffs,
     };
 
-    let (insertions, removals): (
-        Vec<UnorderedMapLikeChange<K, V>>,
-        Vec<UnorderedMapLikeChange<K, V>>
-    ) = diffs.into_iter().partition(|x| match &x {
+    let (insertions, removals): (Vec<_>, Vec<_>) = diffs.into_iter().partition(|x| match &x {
         UnorderedMapLikeChange::InsertMany(_)
         | UnorderedMapLikeChange::InsertFew(_)
         | UnorderedMapLikeChange::InsertSingle(_) => true,
@@ -237,28 +252,28 @@ pub fn apply_unordered_hashdiffs<
 
     for remove in removals {
         match remove {
-            UnorderedMapLikeChange::RemoveMany(UnorderedMapLikeChangeSpec {count, key, ..}) => {
-                match list_hash.get_mut(&key) {
-                    Some(val) if val.1 > count => {
-                        val.1 -= count;
-                    }
-                    Some(val) if val.1 <= count => {
-                        list_hash.remove(&key);
-                    }
-                    _ => (),
+            UnorderedMapLikeChange::RemoveMany(UnorderedMapLikeChangeSpec {
+                count, key, ..
+            }) => match list_hash.get_mut(&key) {
+                Some(val) if val.1 > count => {
+                    val.1 -= count;
                 }
-            }
-            UnorderedMapLikeChange::RemoveFew(UnorderedMapLikeChangeSpec {count, key, ..}) => {
-                match list_hash.get_mut(&key) {
-                    Some(val) if val.1 > count as usize => {
-                        val.1 -= count as usize;
-                    }
-                    Some(val) if val.1 <= count as usize => {
-                        list_hash.remove(&key);
-                    }
-                    _ => (),
+                Some(val) if val.1 <= count => {
+                    list_hash.remove(&key);
                 }
-            }
+                _ => (),
+            },
+            UnorderedMapLikeChange::RemoveFew(UnorderedMapLikeChangeSpec {
+                count, key, ..
+            }) => match list_hash.get_mut(&key) {
+                Some(val) if val.1 > count as usize => {
+                    val.1 -= count as usize;
+                }
+                Some(val) if val.1 <= count as usize => {
+                    list_hash.remove(&key);
+                }
+                _ => (),
+            },
             UnorderedMapLikeChange::RemoveSingle((key, ..)) => match list_hash.get_mut(&key) {
                 Some(val) if val.1 > 1 => {
                     val.1 -= 1;
@@ -268,29 +283,31 @@ pub fn apply_unordered_hashdiffs<
                 }
                 _ => (),
             },
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
     for insertion in insertions.iter() {
         match insertion {
-            UnorderedMapLikeChange::InsertMany(UnorderedMapLikeChangeSpec {count, key, value }) => {
-                match list_hash.get_mut(&key) {
-                    Some(val) => {
-                        val.1 += count;
-                    }
-                    None => {
-                        list_hash.insert(&key, (&value, *count));
-                    }
+            UnorderedMapLikeChange::InsertMany(UnorderedMapLikeChangeSpec {
+                count,
+                key,
+                value,
+            }) => match list_hash.get_mut(&key) {
+                Some(val) => {
+                    val.1 += count;
                 }
-            }
-            UnorderedMapLikeChange::InsertFew(UnorderedMapLikeChangeSpec {count, key, value }) => {
+                None => {
+                    list_hash.insert(key, (value, *count));
+                }
+            },
+            UnorderedMapLikeChange::InsertFew(UnorderedMapLikeChangeSpec { count, key, value }) => {
                 match list_hash.get_mut(&key) {
                     Some(val) => {
                         val.1 += *count as usize;
                     }
                     None => {
-                        list_hash.insert(&key, (&value, *count as usize));
+                        list_hash.insert(key, (value, *count as usize));
                     }
                 }
             }
@@ -299,7 +316,7 @@ pub fn apply_unordered_hashdiffs<
                     val.1 += 1;
                 }
                 None => {
-                    list_hash.insert(&key, (&value, 1));
+                    list_hash.insert(key, (value, 1));
                 }
             },
             _ => {
@@ -319,8 +336,8 @@ pub fn apply_unordered_hashdiffs<
 #[cfg(feature = "nanoserde")]
 mod nanoserde_impls {
     use super::{
-        DeBin, SerBin, UnorderedMapLikeChange, UnorderedMapLikeChangeSpec,
-        UnorderedMapLikeDiff, UnorderedMapLikeDiffInternal,
+        DeBin, SerBin, UnorderedMapLikeChange, UnorderedMapLikeChangeSpec, UnorderedMapLikeDiff,
+        UnorderedMapLikeDiffInternal,
     };
 
     impl<K: SerBin + DeBin, V: SerBin + DeBin> SerBin for UnorderedMapLikeChangeSpec<K, V, usize> {
@@ -340,7 +357,7 @@ mod nanoserde_impls {
     }
 
     impl<K, V> SerBin for UnorderedMapLikeChange<K, V>
-    where 
+    where
         K: SerBin + PartialEq + Clone + DeBin,
         V: SerBin + PartialEq + Clone + DeBin,
     {
@@ -375,7 +392,7 @@ mod nanoserde_impls {
     }
 
     impl<K, V> SerBin for UnorderedMapLikeDiff<K, V>
-    where 
+    where
         K: SerBin + PartialEq + Clone + DeBin,
         V: SerBin + PartialEq + Clone + DeBin,
     {
@@ -394,10 +411,10 @@ mod nanoserde_impls {
     }
 
     impl<K, V> DeBin for UnorderedMapLikeChangeSpec<K, V, usize>
-    where 
+    where
         K: DeBin,
         V: DeBin,
- {
+    {
         fn de_bin(offset: &mut usize, bytes: &[u8]) -> Result<Self, nanoserde::DeBinErr> {
             core::result::Result::Ok(Self {
                 key: DeBin::de_bin(offset, bytes)?,
@@ -408,7 +425,7 @@ mod nanoserde_impls {
     }
 
     impl<K, V> DeBin for UnorderedMapLikeChangeSpec<K, V, u8>
-    where 
+    where
         K: DeBin,
         V: DeBin,
     {
@@ -422,7 +439,7 @@ mod nanoserde_impls {
     }
 
     impl<K, V> DeBin for UnorderedMapLikeChange<K, V>
-    where 
+    where
         K: SerBin + PartialEq + Clone + DeBin,
         V: SerBin + PartialEq + Clone + DeBin,
     {
@@ -450,7 +467,7 @@ mod nanoserde_impls {
     }
 
     impl<K, V> DeBin for UnorderedMapLikeDiff<K, V>
-    where 
+    where
         K: SerBin + PartialEq + Clone + DeBin,
         V: SerBin + PartialEq + Clone + DeBin,
     {
@@ -460,12 +477,12 @@ mod nanoserde_impls {
         ) -> Result<UnorderedMapLikeDiff<K, V>, nanoserde::DeBinErr> {
             let id: u8 = DeBin::de_bin(offset, bytes)?;
             core::result::Result::Ok(match id {
-                0_u8 => UnorderedMapLikeDiff(UnorderedMapLikeDiffInternal::Replace(
-                    DeBin::de_bin(offset, bytes)?,
-                )),
-                1_u8 => UnorderedMapLikeDiff(UnorderedMapLikeDiffInternal::Modify(
-                    DeBin::de_bin(offset, bytes)?,
-                )),
+                0_u8 => UnorderedMapLikeDiff(UnorderedMapLikeDiffInternal::Replace(DeBin::de_bin(
+                    offset, bytes,
+                )?)),
+                1_u8 => UnorderedMapLikeDiff(UnorderedMapLikeDiffInternal::Modify(DeBin::de_bin(
+                    offset, bytes,
+                )?)),
                 _ => {
                     return core::result::Result::Err(nanoserde::DeBinErr {
                         o: *offset,
@@ -491,28 +508,42 @@ mod test {
     fn test_key_only() {
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
         struct TestCollection {
-            #[difference(collection_strategy="unordered_map_like")]
+            #[difference(collection_strategy = "unordered_map_like")]
             test1: HashMap<i32, i32>,
-            #[difference(collection_strategy="unordered_map_like")]
+            #[difference(collection_strategy = "unordered_map_like")]
             test2: BTreeMap<i32, i32>,
-            #[difference(collection_strategy="unordered_map_like")]
+            #[difference(collection_strategy = "unordered_map_like")]
             test3: HashMap<i32, i32>,
-            #[difference(collection_strategy="unordered_map_like")]
+            #[difference(collection_strategy = "unordered_map_like")]
             test4: BTreeMap<i32, i32>,
         }
 
         let first = TestCollection {
-            test1: vec![(10, 0), (15, 2), (20, 0), (25, 0), (30, 15)].into_iter().collect(),
-            test2: vec![(10, 0), (15, 2), (20, 0), (25, 0)].into_iter().collect(),
-            test3: vec![(10, 0), (15, 2), (20, 0), (25, 0), (30, 15)].into_iter().collect(),
-            test4: vec![(10, 0), (15, 2), (20, 0), (25, 0)].into_iter().collect(),
+            test1: vec![(10, 0), (15, 2), (20, 0), (25, 0), (30, 15)]
+                .into_iter()
+                .collect(),
+            test2: vec![(10, 0), (15, 2), (20, 0), (25, 0)]
+                .into_iter()
+                .collect(),
+            test3: vec![(10, 0), (15, 2), (20, 0), (25, 0), (30, 15)]
+                .into_iter()
+                .collect(),
+            test4: vec![(10, 0), (15, 2), (20, 0), (25, 0)]
+                .into_iter()
+                .collect(),
         };
 
         let second = TestCollection {
             test1: Default::default(),
-            test2: vec![(10, 0), (15, 2), (20, 0), (25, 0), (10, 0)].into_iter().collect(),
-            test3: vec![(10, 0), (15, 2), (20, 0), (25, 0)].into_iter().collect(),
-            test4: vec![(10, 0), (15, 2), (20, 0), (25, 0), (15, 2)].into_iter().collect(), // add duplicated field
+            test2: vec![(10, 0), (15, 2), (20, 0), (25, 0), (10, 0)]
+                .into_iter()
+                .collect(),
+            test3: vec![(10, 0), (15, 2), (20, 0), (25, 0)]
+                .into_iter()
+                .collect(),
+            test4: vec![(10, 0), (15, 2), (20, 0), (25, 0), (15, 2)]
+                .into_iter()
+                .collect(), // add duplicated field
         };
 
         let diffs = first.diff(&second);
@@ -542,16 +573,23 @@ mod test {
     fn test_key_value() {
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
         struct TestCollection {
-            #[difference(collection_strategy="unordered_map_like", map_equality="key_and_value")]
+            #[difference(
+                collection_strategy = "unordered_map_like",
+                map_equality = "key_and_value"
+            )]
             test1: HashMap<i32, i32>,
         }
 
         let first = TestCollection {
-            test1: vec![(10, 0), (15, 2), (20, 0), (25, 0), (30, 15)].into_iter().collect(),
+            test1: vec![(10, 0), (15, 2), (20, 0), (25, 0), (30, 15)]
+                .into_iter()
+                .collect(),
         };
 
         let second = TestCollection {
-            test1: vec![(10, 21), (15, 2), (20, 0), (25, 0), (30, 15)].into_iter().collect(),
+            test1: vec![(10, 21), (15, 2), (20, 0), (25, 0), (30, 15)]
+                .into_iter()
+                .collect(),
         };
 
         let diffs = first.diff(&second);

@@ -422,11 +422,11 @@ mod test {
     fn test_collection_strategies() {
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
         struct TestCollection {
-            #[difference(collection_strategy="unordered_array_like")]
+            #[difference(collection_strategy = "unordered_array_like")]
             test1: Vec<i32>,
-            #[difference(collection_strategy="unordered_array_like")]
+            #[difference(collection_strategy = "unordered_array_like")]
             test2: HashSet<i32>,
-            #[difference(collection_strategy="unordered_array_like")]
+            #[difference(collection_strategy = "unordered_array_like")]
             test3: LinkedList<i32>,
         }
 

@@ -1,4 +1,4 @@
-use std::collections::{HashSet, LinkedList, BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet, LinkedList};
 use structdiff::{Difference, StructDiff};
 
 #[test]
@@ -9,7 +9,7 @@ fn test_example() {
         field1: f64,
         #[difference(skip)]
         field2: Vec<i32>,
-        #[difference(collection_strategy="unordered_array_like")]
+        #[difference(collection_strategy = "unordered_array_like")]
         field3: BTreeSet<usize>,
     }
 
@@ -183,11 +183,11 @@ mod derive {
     fn test_collection_strategies() {
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
         struct TestCollection {
-            #[difference(collection_strategy="unordered_array_like")]
+            #[difference(collection_strategy = "unordered_array_like")]
             test1: Vec<i32>,
-            #[difference(collection_strategy="unordered_array_like")]
+            #[difference(collection_strategy = "unordered_array_like")]
             test2: HashSet<i32>,
-            #[difference(collection_strategy="unordered_array_like")]
+            #[difference(collection_strategy = "unordered_array_like")]
             test3: LinkedList<i32>,
         }
 
@@ -216,16 +216,23 @@ mod derive {
     fn test_key_value() {
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
         struct TestCollection {
-            #[difference(collection_strategy="unordered_map_like", map_equality="key_and_value")]
+            #[difference(
+                collection_strategy = "unordered_map_like",
+                map_equality = "key_and_value"
+            )]
             test1: HashMap<i32, i32>,
         }
 
         let first = TestCollection {
-            test1: vec![(10, 0), (15, 2), (20, 0), (25, 0), (30, 15)].into_iter().collect(),
+            test1: vec![(10, 0), (15, 2), (20, 0), (25, 0), (30, 15)]
+                .into_iter()
+                .collect(),
         };
 
         let second = TestCollection {
-            test1: vec![(10, 21), (15, 2), (20, 0), (25, 0), (30, 15)].into_iter().collect(),
+            test1: vec![(10, 21), (15, 2), (20, 0), (25, 0), (30, 15)]
+                .into_iter()
+                .collect(),
         };
 
         let diffs = first.diff(&second);
@@ -240,7 +247,7 @@ mod derive {
 #[cfg(all(test, feature = "nanoserde"))]
 mod nanoserde_serialize {
     use nanoserde::{DeBin, SerBin};
-    use std::collections::{HashSet, LinkedList, HashMap};
+    use std::collections::{HashMap, HashSet, LinkedList};
 
     use super::Test;
     use structdiff::{Difference, StructDiff};
@@ -332,11 +339,11 @@ mod nanoserde_serialize {
     fn test_collection_strategies() {
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
         struct TestCollection {
-            #[difference(collection_strategy="unordered_array_like")]
+            #[difference(collection_strategy = "unordered_array_like")]
             test1: Vec<i32>,
-            #[difference(collection_strategy="unordered_array_like")]
+            #[difference(collection_strategy = "unordered_array_like")]
             test2: HashSet<i32>,
-            #[difference(collection_strategy="unordered_array_like")]
+            #[difference(collection_strategy = "unordered_array_like")]
             test3: LinkedList<i32>,
         }
 
@@ -365,16 +372,23 @@ mod nanoserde_serialize {
     fn test_key_value() {
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
         struct TestCollection {
-            #[difference(collection_strategy="unordered_map_like", map_equality="key_and_value")]
+            #[difference(
+                collection_strategy = "unordered_map_like",
+                map_equality = "key_and_value"
+            )]
             test1: HashMap<i32, i32>,
         }
 
         let first = TestCollection {
-            test1: vec![(10, 0), (15, 2), (20, 0), (25, 0), (30, 15)].into_iter().collect(),
+            test1: vec![(10, 0), (15, 2), (20, 0), (25, 0), (30, 15)]
+                .into_iter()
+                .collect(),
         };
 
         let second = TestCollection {
-            test1: vec![(10, 21), (15, 2), (20, 0), (25, 0), (30, 15)].into_iter().collect(),
+            test1: vec![(10, 21), (15, 2), (20, 0), (25, 0), (30, 15)]
+                .into_iter()
+                .collect(),
         };
 
         let diffs = first.diff(&second);
@@ -388,7 +402,7 @@ mod nanoserde_serialize {
 
 #[cfg(all(test, feature = "serde"))]
 mod serde_serialize {
-    use std::collections::{HashSet, LinkedList, HashMap};
+    use std::collections::{HashMap, HashSet, LinkedList};
 
     use super::Test;
     use structdiff::{Difference, StructDiff};
@@ -481,11 +495,11 @@ mod serde_serialize {
     fn test_collection_strategies() {
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
         struct TestCollection {
-            #[difference(collection_strategy="unordered_array_like")]
+            #[difference(collection_strategy = "unordered_array_like")]
             test1: Vec<i32>,
-            #[difference(collection_strategy="unordered_array_like")]
+            #[difference(collection_strategy = "unordered_array_like")]
             test2: HashSet<i32>,
-            #[difference(collection_strategy="unordered_array_like")]
+            #[difference(collection_strategy = "unordered_array_like")]
             test3: LinkedList<i32>,
         }
 
@@ -515,16 +529,23 @@ mod serde_serialize {
     fn test_key_value() {
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
         struct TestCollection {
-            #[difference(collection_strategy="unordered_map_like", map_equality="key_and_value")]
+            #[difference(
+                collection_strategy = "unordered_map_like",
+                map_equality = "key_and_value"
+            )]
             test1: HashMap<i32, i32>,
         }
 
         let first = TestCollection {
-            test1: vec![(10, 0), (15, 2), (20, 0), (25, 0), (30, 15)].into_iter().collect(),
+            test1: vec![(10, 0), (15, 2), (20, 0), (25, 0), (30, 15)]
+                .into_iter()
+                .collect(),
         };
 
         let second = TestCollection {
-            test1: vec![(10, 21), (15, 2), (20, 0), (25, 0), (30, 15)].into_iter().collect(),
+            test1: vec![(10, 21), (15, 2), (20, 0), (25, 0), (30, 15)]
+                .into_iter()
+                .collect(),
         };
 
         let diffs = first.diff(&second);
