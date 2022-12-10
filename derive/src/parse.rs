@@ -259,7 +259,7 @@ fn next_type<T: Iterator<Item = TokenTree>>(
 
 fn next_attribute<T: Iterator<Item = TokenTree>>(
     mut source: &mut Peekable<T>,
-) -> Option<Option<Attribute>> {
+) -> Option<Option<Vec<Attribute>>> {
     // all attributes, even doc-comments, starts with "#"
     let next_attr_punct = next_punct(&mut source);
     if let Some("#") = next_attr_punct.as_deref() {
@@ -281,6 +281,7 @@ fn next_attribute<T: Iterator<Item = TokenTree>>(
             .into_iter()
             .peekable();
 
+        let mut attrs = vec![];
         let mut attr_tokens = vec![];
 
         loop {
@@ -288,24 +289,48 @@ fn next_attribute<T: Iterator<Item = TokenTree>>(
             attr_tokens.push(attribute_name);
 
             // single-word attribute, like #[structdiff(whatever)]
-            if next_eof(&mut args_group).is_some() {
-                break;
+            match (next_eof(&mut args_group).is_some(), next_punct(&mut source).as_deref() == Some(",")) {
+                (true, _) => {
+                    attrs.push(Attribute {
+                        name: name.clone(),
+                        tokens: std::mem::take(&mut attr_tokens),
+                    });
+                    break;
+                }
+                (false, true) => {
+                    attrs.push(Attribute {
+                        name: name.clone(),
+                        tokens: std::mem::take(&mut attr_tokens),
+                    });
+                },
+                _ => {}
             }
+
             let _ = next_exact_punct(&mut args_group, "=")
                 .expect("Expecting = after attribute argument name");
             let value = next_literal(&mut args_group).expect("Expecting argument value");
 
-            attr_tokens.push(value);
+            attr_tokens.push(value.clone());
 
-            if next_eof(&mut args_group).is_some() {
-                break;
+            match (next_eof(&mut args_group).is_some(), next_exact_punct(&mut args_group, ",").as_deref() == Some(",")) {
+                (true, _) => {
+                    attrs.push(Attribute {
+                        name: name.clone(),
+                        tokens: std::mem::take(&mut attr_tokens),
+                    });
+                    break;
+                }
+                (false, true) => {
+                    attrs.push(Attribute {
+                        name: name.clone(),
+                        tokens: std::mem::take(&mut attr_tokens),
+                    });
+                },
+                _ => {}
             }
         }
 
-        return Some(Some(Attribute {
-            name,
-            tokens: attr_tokens,
-        }));
+        return Some(Some(attrs));
     }
 
     None
@@ -316,7 +341,7 @@ fn next_attributes_list(source: &mut Peekable<impl Iterator<Item = TokenTree>>) 
 
     while let Some(attr) = next_attribute(source) {
         if let Some(structdiff_attr) = attr {
-            attributes.push(structdiff_attr);
+            attributes.extend(structdiff_attr.into_iter());
         }
     }
 

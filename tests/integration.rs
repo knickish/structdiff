@@ -1,4 +1,4 @@
-use std::collections::{HashSet, LinkedList, BTreeSet};
+use std::collections::{HashSet, LinkedList, BTreeSet, HashMap};
 use structdiff::{Difference, StructDiff};
 
 #[test]
@@ -45,7 +45,7 @@ pub struct Test {
     test4: f32,
 }
 
-// #[cfg(test)]
+#[cfg(test)]
 mod derive {
     use super::*;
 
@@ -211,12 +211,36 @@ mod derive {
         assert_eq_unordered!(diffed.test2, second.test2);
         assert_eq_unordered!(diffed.test3, second.test3);
     }
+
+    #[test]
+    fn test_key_value() {
+        #[derive(Debug, PartialEq, Clone, Difference, Default)]
+        struct TestCollection {
+            #[difference(collection_strategy="unordered_map_like", map_equality="key_and_value")]
+            test1: HashMap<i32, i32>,
+        }
+
+        let first = TestCollection {
+            test1: vec![(10, 0), (15, 2), (20, 0), (25, 0), (30, 15)].into_iter().collect(),
+        };
+
+        let second = TestCollection {
+            test1: vec![(10, 21), (15, 2), (20, 0), (25, 0), (30, 15)].into_iter().collect(),
+        };
+
+        let diffs = first.diff(&second);
+
+        let diffed = first.apply(diffs);
+
+        use assert_unordered::assert_eq_unordered;
+        assert_eq_unordered!(diffed.test1, second.test1);
+    }
 }
 
 #[cfg(all(test, feature = "nanoserde"))]
 mod nanoserde_serialize {
     use nanoserde::{DeBin, SerBin};
-    use std::collections::{HashSet, LinkedList};
+    use std::collections::{HashSet, LinkedList, HashMap};
 
     use super::Test;
     use structdiff::{Difference, StructDiff};
@@ -336,11 +360,35 @@ mod nanoserde_serialize {
         assert_eq_unordered!(diffed.test1, second.test1);
         assert_eq_unordered!(diffed.test2, second.test2);
     }
+
+    #[test]
+    fn test_key_value() {
+        #[derive(Debug, PartialEq, Clone, Difference, Default)]
+        struct TestCollection {
+            #[difference(collection_strategy="unordered_map_like", map_equality="key_and_value")]
+            test1: HashMap<i32, i32>,
+        }
+
+        let first = TestCollection {
+            test1: vec![(10, 0), (15, 2), (20, 0), (25, 0), (30, 15)].into_iter().collect(),
+        };
+
+        let second = TestCollection {
+            test1: vec![(10, 21), (15, 2), (20, 0), (25, 0), (30, 15)].into_iter().collect(),
+        };
+
+        let diffs = first.diff(&second);
+        let ser = SerBin::serialize_bin(&diffs);
+        let diffed = first.apply(DeBin::deserialize_bin(&ser).unwrap());
+
+        use assert_unordered::assert_eq_unordered;
+        assert_eq_unordered!(diffed.test1, second.test1);
+    }
 }
 
 #[cfg(all(test, feature = "serde"))]
 mod serde_serialize {
-    use std::collections::{HashSet, LinkedList};
+    use std::collections::{HashSet, LinkedList, HashMap};
 
     use super::Test;
     use structdiff::{Difference, StructDiff};
@@ -461,5 +509,29 @@ mod serde_serialize {
         assert_eq_unordered!(diffed.test1, second.test1);
         assert_eq_unordered!(diffed.test2, second.test2);
         assert_eq_unordered!(diffed.test3, second.test3);
+    }
+
+    #[test]
+    fn test_key_value() {
+        #[derive(Debug, PartialEq, Clone, Difference, Default)]
+        struct TestCollection {
+            #[difference(collection_strategy="unordered_map_like", map_equality="key_and_value")]
+            test1: HashMap<i32, i32>,
+        }
+
+        let first = TestCollection {
+            test1: vec![(10, 0), (15, 2), (20, 0), (25, 0), (30, 15)].into_iter().collect(),
+        };
+
+        let second = TestCollection {
+            test1: vec![(10, 21), (15, 2), (20, 0), (25, 0), (30, 15)].into_iter().collect(),
+        };
+
+        let diffs = first.diff(&second);
+        let ser = serde_json::to_string(&diffs).unwrap();
+        let diffed = first.apply(serde_json::from_str(&ser).unwrap());
+
+        use assert_unordered::assert_eq_unordered;
+        assert_eq_unordered!(diffed.test1, second.test1);
     }
 }

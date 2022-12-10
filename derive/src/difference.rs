@@ -109,30 +109,56 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                             field_name
                         );
                     },
-                    crate::shared::CollectionStrategy::UnorderedMapLikeHash(_) => {
-                        // panic!("here");
-                        l!(diff_enum_body, " {}(structdiff::collections::unordered_map_like::UnorderedMapLikeDiff<{}>),", field_name, field.ty.wraps.clone().expect("Using collection strategy on a non-collection"));
+                    crate::shared::CollectionStrategy::UnorderedMapLikeHash(map_strat) => match map_strat {
+                        crate::shared::MapStrategy::KeyOnly => {
+                            l!(diff_enum_body, " {}(structdiff::collections::unordered_map_like::UnorderedMapLikeDiff<{}>),", field_name, field.ty.wraps.clone().expect("Using collection strategy on a non-collection"));
 
-                        l!(
-                            apply_single_body,
-                            "Self::Diff::{}(__{}) => self.{} = structdiff::collections::unordered_map_like::apply_unordered_hashdiffs(std::mem::take(&mut self.{}).into_iter(), __{}).collect(),",
-                            field_name,
-                            index,
-                            field_name,
-                            field_name,
-                            index
-                        );
+                            l!(
+                                apply_single_body,
+                                "Self::Diff::{}(__{}) => self.{} = structdiff::collections::unordered_map_like::apply_unordered_hashdiffs(std::mem::take(&mut self.{}).into_iter(), __{}).collect(),",
+                                field_name,
+                                index,
+                                field_name,
+                                field_name,
+                                index
+                            );
 
-                        l!(
-                            diff_body,
-                            "if let Some(list_diffs) = structdiff::collections::unordered_map_like::unordered_hashcmp(self.{}.iter(), updated.{}.iter()) {{
-                                diffs.push(Self::Diff::{}(list_diffs));
-                            }};"
-                            ,
-                            field_name,
-                            field_name,
-                            field_name
-                        );
+                            l!(
+                                diff_body,
+                                "if let Some(list_diffs) = structdiff::collections::unordered_map_like::unordered_hashcmp(self.{}.iter(), updated.{}.iter(), true) {{
+                                    diffs.push(Self::Diff::{}(list_diffs));
+                                }};"
+                                ,
+                                field_name,
+                                field_name,
+                                field_name
+                            );
+                        },
+                        crate::shared::MapStrategy::KeyAndValue => {
+                            l!(diff_enum_body, " {}(structdiff::collections::unordered_map_like::UnorderedMapLikeDiff<{}>),", field_name, field.ty.wraps.clone().expect("Using collection strategy on a non-collection"));
+
+                            l!(
+                                apply_single_body,
+                                "Self::Diff::{}(__{}) => self.{} = structdiff::collections::unordered_map_like::apply_unordered_hashdiffs(std::mem::take(&mut self.{}).into_iter(), __{}).collect(),",
+                                field_name,
+                                index,
+                                field_name,
+                                field_name,
+                                index
+                            );
+
+                            l!(
+                                diff_body,
+                                "if let Some(list_diffs) = structdiff::collections::unordered_map_like::unordered_hashcmp(self.{}.iter(), updated.{}.iter(), false) {{
+                                    diffs.push(Self::Diff::{}(list_diffs));
+                                }};"
+                                ,
+                                field_name,
+                                field_name,
+                                field_name
+                            );
+                        },
+
                     }
                 }
             }
