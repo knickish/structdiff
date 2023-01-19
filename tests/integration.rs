@@ -72,8 +72,8 @@ mod derive {
     }
 
     #[derive(Debug, PartialEq, Clone, Difference)]
-    struct TestSkip {
-        test1: i32,
+    struct TestSkip<A> {
+        test1: A,
         test2: String,
         #[difference(skip)]
         test3skip: Vec<i32>,
@@ -82,14 +82,14 @@ mod derive {
 
     #[test]
     fn test_derive_with_skip() {
-        let first = TestSkip {
+        let first: TestSkip<i32> = TestSkip {
             test1: 0,
             test2: String::new(),
             test3skip: Vec::new(),
             test4: 0.0,
         };
 
-        let second = TestSkip {
+        let second: TestSkip<i32> = TestSkip {
             test1: first.test1,
             test2: String::from("Hello Diff"),
             test3skip: vec![1],

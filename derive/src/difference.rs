@@ -25,6 +25,8 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
     let mut diff_body = String::new();
     let mut apply_single_body = String::new();
     let mut type_aliases = String::new();
+    let mut generics: Vec<String> = Vec::new();
+
     let enum_name = String::from("__".to_owned() + struct_.name.as_str() + "StructDiffEnum");
 
     struct_
@@ -34,6 +36,10 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
         .enumerate()
         .for_each(|(index, field)| {
             let field_name = field.field_name.as_ref().unwrap();
+            generics.extend(struct_.generics.iter().filter(|x| x.0 == field.ty.path).map(|x|x.0.clone()));
+            if let Some(wrapped) = &field.ty.wraps {
+                generics.extend(struct_.generics.iter().filter(|x| &x.0 == wrapped).map(|x|x.0.clone()))
+            }
 
             match (attrs_recurse(&field.attributes), attrs_collection_type(&field.attributes)) {
                 (true, None)  => { // Recurse inwards and generate a Vec<SubStructDiff> instead of cloning the entire thing
@@ -169,6 +175,17 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
     #[cfg(feature = "nanoserde")]
     let nanoserde_hack = String::from("\nuse nanoserde::*;");
 
+    let impl_generics=  match generics.iter().map(|generic_typename| format!("{}: core::clone::Clone + core::cmp::PartialEq", generic_typename)).collect::<Vec<_>>().join(", "){
+        list if list.is_empty() => String::from(""),
+        list => format!("<{}>", list)
+    };
+
+    let struct_generics= match struct_.generics.iter().map(|x| x.0.clone()).collect::<Vec<_>>().join(", ") {
+        list if list.is_empty() => String::from(""),
+        list => format!("<{}>", list)
+    };
+
+
     format!(
         "const _: () = {{
         use structdiff::collections::*;
@@ -177,12 +194,12 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
         
         /// Generated type from StructDiff
         #[derive({derives})]
-        pub enum {enum_name} {{
+        pub enum {enum_name}{enum_impl_generics} {{
             {enum_body}
         }}
         
-        impl StructDiff for {struct_name} {{
-            type Diff = {enum_name};
+        impl{impl_generics} StructDiff for {struct_name}{struct_generics_first} {{
+            type Diff = {enum_name}{struct_generics};
 
             fn diff(&self, updated: &Self) -> Vec<Self::Diff> {{
                 let mut diffs = vec![];
@@ -205,7 +222,11 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
         diff_body = diff_body,
         enum_name = enum_name,
         enum_body = diff_enum_body,
-        apply_single_body = apply_single_body
+        apply_single_body = apply_single_body,
+        enum_impl_generics = impl_generics.clone(),
+        impl_generics = impl_generics,
+        struct_generics_first = struct_generics.clone(),
+        struct_generics = struct_generics,
     )
     .parse()
     .unwrap()
