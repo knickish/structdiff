@@ -1,8 +1,10 @@
+use std::collections::{HashMap, HashSet};
+
 use alloc::format;
 use alloc::string::String;
 
 use crate::parse::Struct;
-use crate::shared::{attrs_recurse, attrs_skip, attrs_collection_type};
+use crate::shared::{attrs_collection_type, attrs_recurse, attrs_skip};
 
 use proc_macro::TokenStream;
 
@@ -25,9 +27,10 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
     let mut diff_body = String::new();
     let mut apply_single_body = String::new();
     let mut type_aliases = String::new();
-    let mut generics: Vec<String> = Vec::new();
+    let mut used_generics: Vec<String> = Vec::new();
 
     let enum_name = String::from("__".to_owned() + struct_.name.as_str() + "StructDiffEnum");
+    let struct_generics: HashMap<&String, &Vec<String>> = struct_.generics.iter().map(|entry| (&entry.0, &entry.1)).collect();
 
     struct_
         .fields
@@ -36,9 +39,10 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
         .enumerate()
         .for_each(|(index, field)| {
             let field_name = field.field_name.as_ref().unwrap();
-            generics.extend(struct_.generics.iter().filter(|x| x.0 == field.ty.path).map(|x|x.0.clone()));
-            if let Some(wrapped) = &field.ty.wraps {
-                generics.extend(struct_.generics.iter().filter(|x| &x.0 == wrapped).map(|x|x.0.clone()))
+            used_generics.extend(struct_.generics.iter().filter(|x| x.0 == field.ty.path).map(|x|x.0.clone()));
+            if let Some(wrapped) = field.ty.wraps.as_ref() {
+                let to_add = wrapped.iter().filter(|x| struct_generics.contains_key(x));
+                used_generics.extend(to_add.cloned());
             }
 
             match (attrs_recurse(&field.attributes), attrs_collection_type(&field.attributes)) {
@@ -92,7 +96,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                 (true, Some(_)) => panic!("Recursion inside of collections is not yet supported"),
                 (false, Some(strat)) => match strat {
                     crate::shared::CollectionStrategy::UnorderedArrayLikeHash => {
-                        l!(diff_enum_body, " {}(structdiff::collections::unordered_array_like::UnorderedArrayLikeDiff<{}>),", field_name, field.ty.wraps.clone().expect("Using collection strategy on a non-collection"));
+                        l!(diff_enum_body, " {}(structdiff::collections::unordered_array_like::UnorderedArrayLikeDiff<{}>),", field_name, field.ty.wraps.as_ref().expect("Using collection strategy on a non-collection").join(","));
 
                         l!(
                             apply_single_body,
@@ -117,7 +121,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                     },
                     crate::shared::CollectionStrategy::UnorderedMapLikeHash(map_strat) => match map_strat {
                         crate::shared::MapStrategy::KeyOnly => {
-                            l!(diff_enum_body, " {}(structdiff::collections::unordered_map_like::UnorderedMapLikeDiff<{}>),", field_name, field.ty.wraps.clone().expect("Using collection strategy on a non-collection"));
+                            l!(diff_enum_body, " {}(structdiff::collections::unordered_map_like::UnorderedMapLikeDiff<{}>),", field_name,field.ty.wraps.as_ref().expect("Using collection strategy on a non-collection").join(","));
 
                             l!(
                                 apply_single_body,
@@ -141,7 +145,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                             );
                         },
                         crate::shared::MapStrategy::KeyAndValue => {
-                            l!(diff_enum_body, " {}(structdiff::collections::unordered_map_like::UnorderedMapLikeDiff<{}>),", field_name, field.ty.wraps.clone().expect("Using collection strategy on a non-collection"));
+                            l!(diff_enum_body, " {}(structdiff::collections::unordered_map_like::UnorderedMapLikeDiff<{}>),", field_name, field.ty.wraps.as_ref().expect("Using collection strategy on a non-collection").join(","));
 
                             l!(
                                 apply_single_body,
@@ -175,16 +179,71 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
     #[cfg(feature = "nanoserde")]
     let nanoserde_hack = String::from("\nuse nanoserde::*;");
 
-    let impl_generics=  match generics.iter().map(|generic_typename| format!("{}: core::clone::Clone + core::cmp::PartialEq", generic_typename)).collect::<Vec<_>>().join(", "){
-        list if list.is_empty() => String::from(""),
-        list => format!("<{}>", list)
+    let used_generics = {
+        let mut added: HashSet<String> = HashSet::new();
+        let mut ret = Vec::new();
+        for used in struct_.generics.iter()  {
+            if added.insert(used.0.clone()) && used_generics.contains(&used.0) {
+                ret.push(used.0.clone())
+            }
+        }
+        ret
     };
 
-    let struct_generics= match struct_.generics.iter().map(|x| x.0.clone()).collect::<Vec<_>>().join(", ") {
-        list if list.is_empty() => String::from(""),
-        list => format!("<{}>", list)
+    let all_impl_generics = {
+        let mut do_not_bound = struct_generics.clone();
+        let mut bound_strs = vec![];
+        for generic_typename in used_generics.iter() {
+            do_not_bound.remove_entry(&generic_typename);
+            let mut bounds = format!(
+                "{}: core::clone::Clone + core::cmp::PartialEq",
+                generic_typename
+            );
+            if let Some(&extra_bounds) = struct_generics.get(&generic_typename) {
+                for x in extra_bounds {
+                    if !x.contains("+") && !bounds.ends_with("+") {
+                        bounds += " +";
+                    }
+    
+                    bounds += " ";
+                    bounds += x;
+                };
+            }
+            bound_strs.push(bounds)
+        }
+
+        for (typename, extra_bounds) in do_not_bound.into_iter() {
+            let bounds = format!(
+                "{}: {}",
+                typename,
+                extra_bounds.into_iter().filter(|x| !x.contains('+')).map(|x| x.clone()).collect::<Vec<String>>().join(" + ")
+            );
+            bound_strs.push(bounds)
+        }
+            
+        match bound_strs{
+            list if list.is_empty() => String::from(""),
+            list => format!("<{}>", list.join(", ")),
+        }
     };
 
+    let used_generics_string = match used_generics.into_iter().collect::<Vec<String>>()
+        .join(", ")
+    {
+        list if list.is_empty() => String::from(""),
+        list => format!("<{}>", list),
+    };
+
+    let struct_generics = match struct_
+        .generics
+        .iter()
+        .map(|x| x.0.clone())
+        .collect::<Vec<_>>()
+        .join(", ")
+    {
+        list if list.is_empty() => String::from(""),
+        list => format!("<{}>", list),
+    };
 
     format!(
         "const _: () = {{
@@ -223,10 +282,10 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
         enum_name = enum_name,
         enum_body = diff_enum_body,
         apply_single_body = apply_single_body,
-        enum_impl_generics = impl_generics.clone(),
-        impl_generics = impl_generics,
+        enum_impl_generics = all_impl_generics.clone(),
+        impl_generics = all_impl_generics,
         struct_generics_first = struct_generics.clone(),
-        struct_generics = struct_generics,
+        struct_generics = used_generics_string,
     )
     .parse()
     .unwrap()

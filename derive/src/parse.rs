@@ -40,7 +40,7 @@ pub struct Field {
 pub struct Type {
     pub is_option: bool,
     pub path: String,
-    pub wraps: Option<String>,
+    pub wraps: Option<Vec<String>>,
 }
 
 #[derive(Debug)]
@@ -232,17 +232,16 @@ fn next_type<T: Iterator<Item = TokenTree>>(mut source: &mut Peekable<T>) -> Opt
             Some(Type {
                 path: generic_type.path.clone(),
                 is_option: true,
-                wraps: Some(generic_type.path.clone()),
+                wraps: Some(split_types(generic_type.path)),
             })
         } else {
             Some(Type {
                 path: format!("{}<{}>", ty, generic_type.path.clone()),
                 is_option: false,
-                wraps: Some(generic_type.path),
+                wraps: Some(split_types(generic_type.path)),
             })
         }
     } else {
-        // panic!("{} \n{:?}", &ty, generic_typenames);
         Some(Type {
             path: ty.clone(),
             is_option: false,
@@ -283,7 +282,10 @@ fn next_attribute<T: Iterator<Item = TokenTree>>(
             attr_tokens.push(attribute_name);
 
             // single-word attribute, like #[structdiff(whatever)]
-            match (next_eof(&mut args_group).is_some(), next_punct(&mut source).as_deref() == Some(",")) {
+            match (
+                next_eof(&mut args_group).is_some(),
+                next_punct(&mut source).as_deref() == Some(","),
+            ) {
                 (true, _) => {
                     attrs.push(Attribute {
                         name: name.clone(),
@@ -296,7 +298,7 @@ fn next_attribute<T: Iterator<Item = TokenTree>>(
                         name: name.clone(),
                         tokens: std::mem::take(&mut attr_tokens),
                     });
-                },
+                }
                 _ => {}
             }
 
@@ -306,7 +308,10 @@ fn next_attribute<T: Iterator<Item = TokenTree>>(
 
             attr_tokens.push(value.clone());
 
-            match (next_eof(&mut args_group).is_some(), next_exact_punct(&mut args_group, ",").as_deref() == Some(",")) {
+            match (
+                next_eof(&mut args_group).is_some(),
+                next_exact_punct(&mut args_group, ",").as_deref() == Some(","),
+            ) {
                 (true, _) => {
                     attrs.push(Attribute {
                         name: name.clone(),
@@ -319,7 +324,7 @@ fn next_attribute<T: Iterator<Item = TokenTree>>(
                         name: name.clone(),
                         tokens: std::mem::take(&mut attr_tokens),
                     });
-                },
+                }
                 _ => {}
             }
         }
@@ -405,7 +410,7 @@ fn next_struct(mut source: &mut Peekable<impl Iterator<Item = TokenTree>>) -> St
     };
 
     let mut body = group.stream().into_iter().peekable();
-    let fields = next_fields(&mut body, named );
+    let fields = next_fields(&mut body, named);
 
     if named == false {
         next_exact_punct(&mut source, ";").expect("Expected ; on the end of tuple struct");
@@ -486,14 +491,16 @@ fn next_enum(mut source: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Enum
     }
 }
 
-fn get_bounds(source: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Vec<(String, Vec<String>)> {
+fn get_bounds(
+    source: &mut Peekable<impl Iterator<Item = TokenTree>>,
+) -> Vec<(String, Vec<String>)> {
     let mut ret = Vec::new();
 
     // Angle bracket generics + bounds
     match source.peek() {
         Some(content) if content.to_string() == "<" => {
             source.next();
-            let mut typename = "".to_string(); 
+            let mut typename = "".to_string();
             let mut generic_bounds = Vec::new();
             let mut in_type = true;
             while let Some(tok) = source.next() {
@@ -501,94 +508,99 @@ fn get_bounds(source: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Vec<(St
                     ">" => {
                         ret.push((typename.clone(), std::mem::take(&mut generic_bounds)));
                         typename.clear();
-                        break
-                    },
+                        break;
+                    }
                     ":" => {
                         if in_type {
                             in_type = false
-                        } 
-                    },
+                        }
+                    }
                     "," => {
                         ret.push((typename.clone(), std::mem::take(&mut generic_bounds)));
                         typename.clear();
                         in_type = true
-                    },
+                    }
                     c => {
                         if in_type {
-                            typename+=c;
+                            typename += c;
                         } else {
                             generic_bounds.push(c.to_owned());
                         }
                     }
                 }
             }
-        },
-        _ => ()
+        }
+        _ => (),
     }
 
     // "where" generics + bounds
     if let Some(content) = source.peek() {
-        if content.to_string() != "where"  {
+        if content.to_string() != "where" {
             return ret;
         } else {
             source.next();
         }
 
-        let mut typename = "".to_string(); 
+        let mut typename = "".to_string();
         let mut bound = "".to_string();
         let mut generic_bounds = Vec::new();
         let mut in_type = true;
         while let Some(tok) = source.peek() {
             match tok.to_string().as_str() {
                 end if end.starts_with("{") => {
-                    if typename.is_empty() { break;}
+                    if typename.is_empty() {
+                        break;
+                    }
                     if let Some(entry) = ret.iter_mut().find(|x| typename == x.0) {
                         if !bound.is_empty() {
                             generic_bounds.push(std::mem::take(&mut bound));
                         }
-                        entry.1.extend((std::mem::take(&mut generic_bounds)).into_iter());
+                        entry
+                            .1
+                            .extend((std::mem::take(&mut generic_bounds)).into_iter());
                     } else {
                         panic!("Generics in where bounds must be previously declared in <angle brackets>")
                     }
-                    break
-                },
+                    break;
+                }
                 colon @ ":" => {
                     if in_type {
                         in_type = false;
                     } else {
-                        bound+=colon;
+                        bound += colon;
                     }
-                    
-                },
+                }
                 "," => {
                     if !bound.is_empty() {
                         generic_bounds.push(std::mem::take(&mut bound));
                     }
                     if let Some(entry) = ret.iter_mut().find(|x| typename == x.0) {
-                        entry.1.extend((std::mem::take(&mut generic_bounds)).into_iter());
+                        entry
+                            .1
+                            .extend((std::mem::take(&mut generic_bounds)).into_iter());
                     } else {
                         panic!("Generics in where bounds must be previously declared in <angle brackets>")
                     }
                     typename.clear();
                     in_type = true
-                },
+                }
                 "+" => {
                     if !bound.is_empty() {
                         generic_bounds.push(std::mem::take(&mut bound));
                     }
-                },
+                }
                 c => {
                     if in_type {
-                        typename+=c;
+                        typename += c;
                     } else {
-                        bound+=c;
+                        bound += c;
                     }
                 }
             }
             source.next();
         }
     }
-    
+
     ret
 }
 
@@ -626,4 +638,12 @@ pub fn parse_data(input: TokenStream) -> Data {
         "Unexpected data after end of the struct"
     );
     res
+}
+
+fn split_types(combined: String) -> Vec<String> {
+    let whitespaced = combined.chars().map(|c| match c.is_alphanumeric() {
+        true => c,
+        false => ' ',
+    }).collect::<String>();
+    whitespaced.split_ascii_whitespace().map(|x| x.to_string()).collect()
 }
