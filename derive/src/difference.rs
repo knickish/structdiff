@@ -30,7 +30,11 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
     let mut used_generics: Vec<String> = Vec::new();
 
     let enum_name = String::from("__".to_owned() + struct_.name.as_str() + "StructDiffEnum");
-    let struct_generics: HashMap<&String, &Vec<String>> = struct_.generics.iter().map(|entry| (&entry.0, &entry.1)).collect();
+    let struct_generics: HashMap<&String, &Vec<String>> = struct_
+        .generics
+        .iter()
+        .map(|entry| (&entry.0, &entry.1))
+        .collect();
 
     struct_
         .fields
@@ -215,18 +219,25 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
             let bounds = format!(
                 "{}: {}",
                 typename,
-                extra_bounds.into_iter().filter(|x| !x.contains('+')).map(|x| x.clone()).collect::<Vec<String>>().join(" + ")
+                extra_bounds
+                    .into_iter()
+                    .filter(|x| !x.contains('+'))
+                    .map(|x| x.clone())
+                    .collect::<Vec<String>>()
+                    .join(" + ")
             );
             bound_strs.push(bounds)
         }
-            
-        match bound_strs{
+
+        match bound_strs {
             list if list.is_empty() => String::from(""),
             list => format!("<{}>", list.join(", ")),
         }
     };
 
-    let used_generics_string = match used_generics.into_iter().collect::<Vec<String>>()
+    let used_generics_string = match used_generics
+        .into_iter()
+        .collect::<Vec<String>>()
         .join(", ")
     {
         list if list.is_empty() => String::from(""),
