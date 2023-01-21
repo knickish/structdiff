@@ -2,7 +2,7 @@ pub use structdiff_derive::Difference;
 
 pub mod collections;
 
-pub trait StructDiff: PartialEq + Clone {
+pub trait StructDiff: PartialEq + Sized {
     /// A generated type used to represent the difference
     /// between two instances of a struct which implements
     /// the StructDiff trait.
@@ -39,17 +39,19 @@ pub trait StructDiff: PartialEq + Clone {
     fn apply_single(&mut self, diff: Self::Diff);
 
     /// Apply a full diff to an owned self
-    fn apply(self, diffs: Vec<Self::Diff>) -> Self {
-        let mut mut_self = self;
+    fn apply(mut self, diffs: Vec<Self::Diff>) -> Self {
         for diff in diffs {
-            mut_self.apply_single(diff);
+            self.apply_single(diff);
         }
-        mut_self
+        self
     }
 
     /// Apply a full diff to a self ref, returning a cloned version of self
     /// after diff is applied
-    fn apply_ref(&self, diffs: Vec<Self::Diff>) -> Self {
+    fn apply_ref(&self, diffs: Vec<Self::Diff>) -> Self
+    where
+        Self: Clone,
+    {
         self.clone().apply(diffs)
     }
 

@@ -1,4 +1,7 @@
-use std::collections::{BTreeSet, HashMap, HashSet, LinkedList};
+use std::{
+    collections::{BTreeSet, HashMap, HashSet, LinkedList},
+    hash::Hash,
+};
 use structdiff::{Difference, StructDiff};
 
 #[test]
@@ -104,6 +107,83 @@ mod derive {
         assert_eq!(diffed.test2, second.test2);
         assert_ne!(diffed.test3skip, second.test3skip);
         assert_eq!(diffed.test4, second.test4);
+    }
+
+    #[cfg(not(feature = "nanoserde"))]
+    #[derive(Debug, PartialEq, Clone, Difference)]
+    struct TestGenerics<A, B, C, RS: Eq + Hash> {
+        test1: A,
+        test2: B,
+        test3: C,
+        test4: HashMap<RS, A>,
+    }
+
+    #[cfg(not(feature = "nanoserde"))]
+    #[test]
+    fn test_generics() {
+        let first: TestGenerics<i32, usize, String, Option<()>> = TestGenerics {
+            test1: 0,
+            test2: 42,
+            test3: String::from("test123"),
+            test4: [(Some(()), 1)].into_iter().collect(),
+        };
+
+        let second: TestGenerics<i32, usize, String, Option<()>> = TestGenerics {
+            test1: 0,
+            test2: 42,
+            test3: String::from("test1234"),
+            test4: [(None, 2)].into_iter().collect(),
+        };
+
+        let diffs = first.diff(&second);
+        let diffed = first.apply(diffs);
+
+        //check that all except the skipped are changed
+        assert_eq!(diffed.test1, second.test1);
+        assert_eq!(diffed.test2, second.test2);
+        assert_eq!(diffed.test3, second.test3);
+        assert_eq!(diffed.test4, second.test4);
+    }
+
+    #[cfg(not(feature = "nanoserde"))]
+    #[derive(Debug, PartialEq, Clone, Difference)]
+    struct TestGenericsSkip<A, B, C, RS: Eq + Hash> {
+        test1: A,
+        test2: B,
+        test3: C,
+        #[difference(skip)]
+        test4: HashMap<RS, A>,
+        test5: HashMap<RS, A>,
+    }
+
+    #[cfg(not(feature = "nanoserde"))]
+    #[test]
+    fn test_generics_skip() {
+        let first: TestGenericsSkip<i32, usize, String, Option<()>> = TestGenericsSkip {
+            test1: 0,
+            test2: 42,
+            test3: String::from("test123"),
+            test4: [(Some(()), 1)].into_iter().collect(),
+            test5: [(Some(()), 1)].into_iter().collect(),
+        };
+
+        let second: TestGenericsSkip<i32, usize, String, Option<()>> = TestGenericsSkip {
+            test1: 0,
+            test2: 42,
+            test3: String::from("test123"),
+            test4: [(None, 2)].into_iter().collect(),
+            test5: [(None, 2)].into_iter().collect(),
+        };
+
+        let diffs = first.diff(&second);
+        let diffed = first.apply(diffs);
+
+        //check that all except the skipped are changed
+        assert_eq!(diffed.test1, second.test1);
+        assert_eq!(diffed.test2, second.test2);
+        assert_eq!(diffed.test3, second.test3);
+        assert_ne!(diffed.test4, second.test4);
+        assert_eq!(diffed.test5, second.test5);
     }
 
     mod derive_inner {

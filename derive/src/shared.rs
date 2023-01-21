@@ -12,7 +12,7 @@ macro_rules! l {
 pub enum MapStrategy {
     KeyOnly,
     #[default]
-    KeyAndValue
+    KeyAndValue,
 }
 
 #[derive(Debug)]
