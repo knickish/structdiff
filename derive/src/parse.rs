@@ -500,34 +500,63 @@ fn get_bounds(
     match source.peek() {
         Some(content) if content.to_string() == "<" => {
             source.next();
-            let mut typename = "".to_string();
+            let mut typename: Option<String> = None;
+            let mut boundname: Option<String> = None;
             let mut generic_bounds = Vec::new();
             let mut in_type = true;
             while let Some(tok) = source.next() {
                 match tok.to_string().as_str() {
                     ">" => {
-                        ret.push((typename.clone(), std::mem::take(&mut generic_bounds)));
-                        typename.clear();
+                        if let Some(boundname) = boundname.take() {
+                            generic_bounds.push(boundname)
+                        }
+                        if let Some(typename) = typename.take() {
+                            ret.push((typename, std::mem::take(&mut generic_bounds)))
+                        }
                         break;
                     }
-                    ":" => {
+                    colon @ ":" => {
                         if in_type {
-                            in_type = false
+                            in_type = false;
+                        } else {
+                            if let Some(boundname) = boundname.as_mut() {
+                                *boundname += colon
+                            } else {
+                                boundname = Some(String::from(colon))
+                            }
                         }
-                    }
+                    },
                     "," => {
-                        ret.push((typename.clone(), std::mem::take(&mut generic_bounds)));
-                        typename.clear();
+                        if let Some(boundname) = boundname.take() {
+                            generic_bounds.push(boundname)
+                        }
+                        if let Some(typename) = typename.take() {
+                            ret.push((typename, std::mem::take(&mut generic_bounds)))
+                        }
                         in_type = true
+                    }
+                    "+" => {
+                        if let Some(boundname) = boundname.take() {
+                            generic_bounds.push(boundname)
+                        }
                     }
                     c => {
                         if in_type {
-                            typename += c;
+                            if let Some(typename) = typename.as_mut() {
+                                *typename += c
+                            } else {
+                                typename = Some(String::from(c))
+                            }
                         } else {
-                            generic_bounds.push(c.to_owned());
+                            if let Some(boundname) = boundname.as_mut() {
+                                *boundname += c
+                            } else {
+                                boundname = Some(String::from(c))
+                            }
                         }
                     }
                 }
+                eprint!("\n");
             }
         }
         _ => (),
