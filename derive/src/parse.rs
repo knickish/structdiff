@@ -641,9 +641,15 @@ pub fn parse_data(input: TokenStream) -> Data {
 }
 
 fn split_types(combined: String) -> Vec<String> {
-    let whitespaced = combined.chars().map(|c| match c.is_alphanumeric() {
-        true => c,
-        false => ' ',
-    }).collect::<String>();
-    whitespaced.split_ascii_whitespace().map(|x| x.to_string()).collect()
+    let whitespaced = combined
+        .chars()
+        .map(|c| match c.is_alphanumeric() {
+            true => c,
+            false => ' ',
+        })
+        .collect::<String>();
+    whitespaced
+        .split_ascii_whitespace()
+        .map(|x| x.to_string())
+        .collect()
 }

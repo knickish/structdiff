@@ -48,7 +48,10 @@ pub trait StructDiff: PartialEq + Sized {
 
     /// Apply a full diff to a self ref, returning a cloned version of self
     /// after diff is applied
-    fn apply_ref(&self, diffs: Vec<Self::Diff>) -> Self where Self: Clone {
+    fn apply_ref(&self, diffs: Vec<Self::Diff>) -> Self
+    where
+        Self: Clone,
+    {
         self.clone().apply(diffs)
     }
 
