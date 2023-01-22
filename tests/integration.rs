@@ -1,7 +1,6 @@
-use std::{
-    collections::{BTreeSet, HashMap, HashSet, LinkedList},
-    hash::Hash,
-};
+use std::collections::{BTreeSet, HashMap, HashSet, LinkedList};
+#[cfg(not(feature = "nanoserde"))]
+use std::hash::Hash;
 use structdiff::{Difference, StructDiff};
 
 #[test]
