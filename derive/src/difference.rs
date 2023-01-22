@@ -208,7 +208,6 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                     if !x.contains("+") && !bounds.ends_with("+") {
                         bounds += " +";
                     }
-
                     bounds += " ";
                     bounds += x;
                 }

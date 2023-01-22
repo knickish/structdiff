@@ -56,4 +56,4 @@ For more examples take a look at [integration tests](/tests)
 - [`nanoserde`, `serde`] - Serialization of `Difference` derived associated types. Allows diffs to easily be sent over network.
 
 ### Development status 
-This is being used actively for my own projects, although it's msotly working for me now. PRs will be accepted for either more tests or functionality.
+This is being used actively for my own projects, although it's mostly working now. PRs will be accepted for either more tests or functionality.

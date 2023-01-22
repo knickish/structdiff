@@ -1,7 +1,6 @@
-use std::{
-    collections::{BTreeSet, HashMap, HashSet, LinkedList},
-    hash::Hash,
-};
+use std::collections::{BTreeSet, HashMap, HashSet, LinkedList};
+#[cfg(not(feature = "nanoserde"))]
+use std::hash::Hash;
 use structdiff::{Difference, StructDiff};
 
 #[test]
@@ -117,7 +116,6 @@ mod derive {
         test3: C,
         test4: HashMap<RS, A>,
     }
-
     #[cfg(not(feature = "nanoserde"))]
     #[test]
     fn test_generics() {
