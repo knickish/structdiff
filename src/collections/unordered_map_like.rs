@@ -559,8 +559,7 @@ mod test {
             panic!("Collection strategy failure");
         }
 
-        let diffed = dbg!(first.apply(dbg!(diffs)));
-        dbg!(&second);
+        let diffed = first.apply(diffs);
 
         use assert_unordered::assert_eq_unordered;
         assert_eq_unordered!(diffed.test1, second.test1);
