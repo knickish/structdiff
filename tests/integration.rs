@@ -4,7 +4,7 @@ use std::hash::Hash;
 use structdiff::{Difference, StructDiff};
 
 #[cfg(feature = "serde")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "nanoserde")]
 use nanoserde::{DeBin, SerBin};
@@ -63,7 +63,7 @@ fn test_derive() {
         test2: String::new(),
         test3: Vec::new(),
         test4: 0.0,
-        test5: None
+        test5: None,
     };
 
     let second = Test {
@@ -71,7 +71,7 @@ fn test_derive() {
         test2: String::from("Hello Diff"),
         test3: vec![1],
         test4: 3.14,
-        test5: Some(12)
+        test5: Some(12),
     };
 
     let diffs = first.diff(&second);
@@ -110,7 +110,7 @@ fn test_derive_with_skip() {
 
     #[cfg(feature = "serde")]
     {
-        let ser_diff = serde_json::to_string(& diffs).unwrap();
+        let ser_diff = serde_json::to_string(&diffs).unwrap();
         let deser_diff = serde_json::from_str(&ser_diff).unwrap();
         let diffed_serde = first.clone().apply(deser_diff);
 
@@ -170,7 +170,7 @@ fn test_generics() {
 
     #[cfg(feature = "serde")]
     {
-        let ser_diff = serde_json::to_string(& diffs).unwrap();
+        let ser_diff = serde_json::to_string(&diffs).unwrap();
         let deser_diff = serde_json::from_str(&ser_diff).unwrap();
         let diffed_serde = first.clone().apply(deser_diff);
 
@@ -192,8 +192,6 @@ fn test_generics() {
     assert_eq!(diffed.test2, second.test2);
     assert_eq!(diffed.test3, second.test3);
     assert_eq!(diffed.test4, second.test4);
-
-    
 }
 
 #[cfg(not(feature = "nanoserde"))]
@@ -230,7 +228,7 @@ fn test_generics_skip() {
 
     #[cfg(feature = "serde")]
     {
-        let ser_diff = serde_json::to_string(& diffs).unwrap();
+        let ser_diff = serde_json::to_string(&diffs).unwrap();
         let deser_diff = serde_json::from_str(&ser_diff).unwrap();
         let diffed_serde = first.clone().apply(deser_diff);
 
@@ -274,7 +272,7 @@ mod derive_inner {
             test2: String::new(),
             test3: Vec::new(),
             test4: 0.0,
-            test5: None
+            test5: None,
         };
 
         let second = Test {
@@ -282,7 +280,7 @@ mod derive_inner {
             test2: String::from("Hello Diff"),
             test3: vec![1],
             test4: 3.14,
-            test5: Some(13)
+            test5: Some(13),
         };
 
         let diffs = first.diff(&second);
@@ -314,7 +312,7 @@ fn test_recurse() {
             test2: String::new(),
             test3: Vec::new(),
             test4: 0.0,
-            test5: Some(14)
+            test5: Some(14),
         },
         test3: None,
         test4: Some(Test::default()),
@@ -323,8 +321,8 @@ fn test_recurse() {
             test2: String::new(),
             test3: Vec::new(),
             test4: 0.0,
-            test5: Some(14)
-        })
+            test5: Some(14),
+        }),
     };
 
     let second = TestRecurse {
@@ -334,7 +332,7 @@ fn test_recurse() {
             test2: String::new(),
             test3: Vec::new(),
             test4: 3.14,
-            test5: None
+            test5: None,
         },
         test3: Some(Test::default()),
         test4: Some(Test {
@@ -342,10 +340,9 @@ fn test_recurse() {
             test2: String::new(),
             test3: Vec::new(),
             test4: 0.0,
-            test5: Some(14)
+            test5: Some(14),
         }),
         test5: None,
-        
     };
 
     let diffs = first.diff(&second);
@@ -361,7 +358,7 @@ fn test_recurse() {
 
     #[cfg(feature = "serde")]
     {
-        let ser_diff = serde_json::to_string(& diffs).unwrap();
+        let ser_diff = serde_json::to_string(&diffs).unwrap();
         let deser_diff = serde_json::from_str(&ser_diff).unwrap();
         let diffed_serde = first.clone().apply(deser_diff);
 
@@ -409,7 +406,7 @@ fn test_collection_strategies() {
 
     #[cfg(feature = "serde")]
     {
-        let ser_diff = serde_json::to_string(& diffs).unwrap();
+        let ser_diff = serde_json::to_string(&diffs).unwrap();
         let deser_diff = serde_json::from_str(&ser_diff).unwrap();
         let diffed_serde = first.clone().apply(deser_diff);
 
@@ -465,7 +462,7 @@ fn test_key_value() {
 
     #[cfg(feature = "serde")]
     {
-        let ser_diff = serde_json::to_string(& diffs).unwrap();
+        let ser_diff = serde_json::to_string(&diffs).unwrap();
         let deser_diff = serde_json::from_str(&ser_diff).unwrap();
         let diffed_serde = first.clone().apply(deser_diff);
 
