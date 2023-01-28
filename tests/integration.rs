@@ -166,7 +166,7 @@ fn test_generics() {
         test4: [(String::from("test1234"), 2)].into_iter().collect(),
     };
 
-    let diffs = dbg!(first.diff(&second));
+    let diffs = first.diff(&second);
 
     #[cfg(feature = "serde")]
     {
