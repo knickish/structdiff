@@ -80,7 +80,6 @@ fn test_derive() {
     assert_eq!(diffed, second);
 }
 
-#[cfg_attr(featue = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Difference)]
 struct TestSkip<A> {
     test1: A,
@@ -141,14 +140,15 @@ fn test_derive_with_skip() {
 }
 
 #[cfg(not(feature = "nanoserde"))] // this is broken until nanoserde fixes its generic serde
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Difference)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 struct TestGenerics<A, B, C, RS: Eq + Hash> {
     test1: A,
     test2: B,
     test3: C,
     test4: HashMap<RS, A>,
 }
+
 #[cfg(not(feature = "nanoserde"))]
 #[test]
 fn test_generics() {

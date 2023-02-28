@@ -15,6 +15,7 @@ structdiff-derive   = { path = "derive", version = "=0.5.4" }
 "default"   = []
 "nanoserde" = ["dep:nanoserde", "structdiff-derive/nanoserde"]
 "serde"     = ["dep:serde", "structdiff-derive/serde"]
+"debug_diffs" = ["structdiff-derive/debug_diffs"]
 
 [dev-dependencies]
 serde_json = "1.0.87"

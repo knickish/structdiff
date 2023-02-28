@@ -1,3 +1,9 @@
+#[cfg(feature = "nanoserde")]
+use nanoserde::{DeBin, SerBin};
+
+#[cfg(feature = "serde")]
+use serde::{de::DeserializeOwned, Serialize};
+
 pub use structdiff_derive::Difference;
 
 pub mod collections;
@@ -6,7 +12,38 @@ pub trait StructDiff: PartialEq + Sized {
     /// A generated type used to represent the difference
     /// between two instances of a struct which implements
     /// the StructDiff trait.
-    type Diff;
+    #[cfg(all(feature = "nanoserde", feature = "serde", feature = "debug_diffs"))]
+    type Diff: SerBin + DeBin + Serialize + DeserializeOwned + Clone + std::fmt::Debug;
+    #[cfg(all(feature = "nanoserde", not(feature = "serde"), feature = "debug_diffs"))]
+    type Diff: SerBin + DeBin + Clone + std::fmt::Debug;
+    #[cfg(all(feature = "serde", not(feature = "nanoserde"), feature = "debug_diffs"))]
+    type Diff: Serialize + DeserializeOwned + Clone + std::fmt::Debug;
+    #[cfg(all(
+        not(feature = "serde"),
+        not(feature = "nanoserde"),
+        feature = "debug_diffs"
+    ))]
+    type Diff: Clone + std::fmt::Debug;
+    #[cfg(all(feature = "nanoserde", feature = "serde", not(feature = "debug_diffs")))]
+    type Diff: SerBin + DeBin + Serialize + DeserializeOwned + Clone;
+    #[cfg(all(
+        feature = "nanoserde",
+        not(feature = "serde"),
+        not(feature = "debug_diffs")
+    ))]
+    type Diff: SerBin + DeBin + Clone;
+    #[cfg(all(
+        feature = "serde",
+        not(feature = "nanoserde"),
+        not(feature = "debug_diffs")
+    ))]
+    type Diff: Serialize + DeserializeOwned + Clone;
+    #[cfg(all(
+        not(feature = "serde"),
+        not(feature = "nanoserde"),
+        not(feature = "debug_diffs")
+    ))]
+    type Diff: Clone;
 
     /// Generate a diff between two instances of a struct.
     /// This diff may be serialized if one of the serialization
