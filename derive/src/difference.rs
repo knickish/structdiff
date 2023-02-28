@@ -10,7 +10,8 @@ use proc_macro::TokenStream;
 
 pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
     let derives: String = vec![
-        "Debug",
+        #[cfg(feature = "debug_diffs")]
+        "core::fmt::Debug",
         "Clone",
         #[cfg(feature = "nanoserde")]
         "nanoserde::SerBin",
@@ -50,6 +51,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
             }
 
             match (attrs_recurse(&field.attributes), attrs_collection_type(&field.attributes), field.ty.is_option) {
+
                 (false, None, false) => {  // The default case
                     l!(diff_enum_body, " {}({}),", field_name, field.ty.path);
                     
@@ -168,7 +170,61 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                         field_name
                     );
                 },
-                (true, Some(_), _) => panic!("Recursion inside of collections is not yet supported"),
+                (true, Some(strat), false) => match strat {
+                    crate::shared::CollectionStrategy::UnorderedArrayLikeHash => { panic!("Recursion inside of array-like collections is not yet supported"); },
+                    crate::shared::CollectionStrategy::UnorderedMapLikeHash(crate::shared::MapStrategy::KeyAndValue) => {
+                        
+                        l!(diff_enum_body, " {}(structdiff::collections::unordered_map_like_recursive::UnorderedMapLikeRecursiveDiff<{}>),", field_name, field.ty.wraps.as_ref().expect("Using collection strategy on a non-collection").join(","));
+
+                        l!(
+                            apply_single_body,
+                            "Self::Diff::{}(__{}) => self.{} = structdiff::collections::unordered_map_like_recursive::apply_unordered_hashdiffs(std::mem::take(&mut self.{}).into_iter(), __{}).collect(),",
+                            field_name,
+                            index,
+                            field_name,
+                            field_name,
+                            index
+                        );
+
+                        l!(
+                            diff_body,
+                            "if let Some(list_diffs) = structdiff::collections::unordered_map_like_recursive::unordered_hashcmp(self.{}.iter(), updated.{}.iter(), false) {{
+                                diffs.push(Self::Diff::{}(list_diffs));
+                            }};"
+                            ,
+                            field_name,
+                            field_name,
+                            field_name
+                        );
+
+                    },
+                    crate::shared::CollectionStrategy::UnorderedMapLikeHash(crate::shared::MapStrategy::KeyOnly) => {
+                        
+                        l!(diff_enum_body, " {}(structdiff::collections::unordered_map_like_recursive::UnorderedMapLikeRecursiveDiff<{}>),", field_name, field.ty.wraps.as_ref().expect("Using collection strategy on a non-collection").join(","));
+
+                        l!(
+                            apply_single_body,
+                            "Self::Diff::{}(__{}) => self.{} = structdiff::collections::unordered_map_like_recursive::apply_unordered_hashdiffs(std::mem::take(&mut self.{}).into_iter(), __{}).collect(),",
+                            field_name,
+                            index,
+                            field_name,
+                            field_name,
+                            index
+                        );
+
+                        l!(
+                            diff_body,
+                            "if let Some(list_diffs) = structdiff::collections::unordered_map_like_recursive::unordered_hashcmp(self.{}.iter(), updated.{}.iter(), true) {{
+                                diffs.push(Self::Diff::{}(list_diffs));
+                            }};"
+                            ,
+                            field_name,
+                            field_name,
+                            field_name
+                        );
+
+                    }
+                },
                 (false, Some(_), true) => panic!("Collection strategies inside of options are not yet supported"),
                 (false, Some(strat), false) => match strat {
                     crate::shared::CollectionStrategy::UnorderedArrayLikeHash => {
@@ -246,7 +302,8 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                         },
 
                     }
-                }
+                },
+                _ => panic!("this combination of options is not yet supported, please file an issue")
             }
         });
 
@@ -263,8 +320,27 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                 ret.push(used.0.clone())
             }
         }
+
         ret
     };
+
+    #[inline(always)]
+    fn get_used_generic_bounds() -> String {
+        let bounds = [
+            "core::clone::Clone + core::cmp::PartialEq",
+            #[cfg(feature = "debug_diffs")]
+            " + core::fmt::Debug",
+            #[cfg(feature = "nanoserde")]
+            " + nanoserde::DeBin",
+            #[cfg(feature = "nanoserde")]
+            " + nanoserde::SerBin",
+            #[cfg(feature = "serde")]
+            " + serde::Serialize",
+            #[cfg(feature = "serde")]
+            " + serde::de::DeserializeOwned",
+        ];
+        bounds.join("")
+    }
 
     let all_impl_generics = {
         let mut do_not_bound = struct_generics.clone();
@@ -272,8 +348,9 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
         for generic_typename in used_generics.iter() {
             do_not_bound.remove_entry(&generic_typename);
             let mut bounds = format!(
-                "{}: core::clone::Clone + core::cmp::PartialEq",
-                generic_typename
+                "{}: {}",
+                generic_typename,
+                get_used_generic_bounds()
             );
             if let Some(&extra_bounds) = struct_generics.get(&generic_typename) {
                 for x in extra_bounds {
@@ -308,7 +385,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
     };
 
     let used_generics_string = match used_generics
-        .into_iter()
+        .iter().cloned()
         .collect::<Vec<String>>()
         .join(", ")
     {
@@ -327,34 +404,45 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
         list => format!("<{}>", list),
     };
 
+    #[cfg(feature = "serde")]
+    let serde_bound = {
+        let start = "#[serde(bound = \"";
+        let mid = used_generics.into_iter().map(|x| format!("{}: serde::Serialize + serde::de::DeserializeOwned", x)).collect::<Vec<_>>().join(", ");
+        let end = "\")]";
+        vec![start, &mid, end].join("")
+    };
+    #[cfg(not(feature = "serde"))]
+    let serde_bound = "";
+
     format!(
         "const _: () = {{
-        use structdiff::collections::*;
-        {type_aliases}
-        {nanoserde_hack}
-        
-        /// Generated type from StructDiff
-        #[derive({derives})]
-        pub enum {enum_name}{enum_impl_generics} {{
-            {enum_body}
-        }}
-        
-        impl{impl_generics} StructDiff for {struct_name}{struct_generics_first} {{
-            type Diff = {enum_name}{struct_generics};
-
-            fn diff(&self, updated: &Self) -> Vec<Self::Diff> {{
-                let mut diffs = vec![];
-                {diff_body}
-                diffs
+            use structdiff::collections::*;
+            {type_aliases}
+            {nanoserde_hack}
+            
+            /// Generated type from StructDiff
+            #[derive({derives})]
+            {serde_bounds}
+            pub enum {enum_name}{enum_impl_generics} {{
+                {enum_body}
             }}
+            
+            impl{impl_generics} StructDiff for {struct_name}{struct_generics_first} {{
+                type Diff = {enum_name}{struct_generics};
 
-            #[inline(always)]
-            fn apply_single(&mut self, diff: Self::Diff) {{
-                match diff {{
-                    {apply_single_body}
+                fn diff(&self, updated: &Self) -> Vec<Self::Diff> {{
+                    let mut diffs = vec![];
+                    {diff_body}
+                    diffs
+                }}
+
+                #[inline(always)]
+                fn apply_single(&mut self, diff: Self::Diff) {{
+                    match diff {{
+                        {apply_single_body}
+                    }}
                 }}
             }}
-        }}
         }};",
         type_aliases = type_aliases,
         nanoserde_hack = nanoserde_hack,
@@ -368,6 +456,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
         impl_generics = all_impl_generics,
         struct_generics_first = struct_generics.clone(),
         struct_generics = used_generics_string,
+        serde_bounds = serde_bound
     )
     .parse()
     .unwrap()

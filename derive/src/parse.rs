@@ -186,9 +186,9 @@ pub fn next_group(source: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Opt
     }
 }
 
-// pub fn debug_current_token(source: &mut Peekable<impl Iterator<Item = TokenTree>>) {
-//     println!("{:?}", source.peek());
-// }
+pub fn _debug_current_token(source: &mut Peekable<impl Iterator<Item = TokenTree>>) {
+    println!("{:?}", source.peek());
+}
 
 fn next_type<T: Iterator<Item = TokenTree>>(mut source: &mut Peekable<T>) -> Option<Type> {
     let group = next_group(&mut source);
@@ -255,84 +255,84 @@ fn next_attribute<T: Iterator<Item = TokenTree>>(
 ) -> Option<Option<Vec<Attribute>>> {
     // all attributes, even doc-comments, starts with "#"
     let next_attr_punct = next_punct(&mut source);
-    if let Some("#") = next_attr_punct.as_deref() {
-        let mut attr_group = next_group(&mut source)
-            .expect("Expecting attribute body")
-            .stream()
-            .into_iter()
-            .peekable();
+    let Some("#") = next_attr_punct.as_deref() else {
+        return None
+    };
 
-        let name = next_ident(&mut attr_group).expect("Attributes should start with a name");
+    let mut attr_group = next_group(&mut source)
+        .expect("Expecting attribute body")
+        .stream()
+        .into_iter()
+        .peekable();
 
-        if name != "difference" {
-            return Some(None);
-        }
+    let name = next_ident(&mut attr_group).expect("Attributes should start with a name");
 
-        let mut args_group = next_group(&mut attr_group)
-            .expect("Expecting attribute body")
-            .stream()
-            .into_iter()
-            .peekable();
-
-        let mut attrs = vec![];
-        let mut attr_tokens = vec![];
-
-        loop {
-            let attribute_name = next_ident(&mut args_group).expect("Expecting attribute name");
-            attr_tokens.push(attribute_name);
-
-            // single-word attribute, like #[structdiff(whatever)]
-            match (
-                next_eof(&mut args_group).is_some(),
-                next_punct(&mut source).as_deref() == Some(","),
-            ) {
-                (true, _) => {
-                    attrs.push(Attribute {
-                        name: name.clone(),
-                        tokens: std::mem::take(&mut attr_tokens),
-                    });
-                    break;
-                }
-                (false, true) => {
-                    attrs.push(Attribute {
-                        name: name.clone(),
-                        tokens: std::mem::take(&mut attr_tokens),
-                    });
-                }
-                _ => {}
-            }
-
-            let _ = next_exact_punct(&mut args_group, "=")
-                .expect("Expecting = after attribute argument name");
-            let value = next_literal(&mut args_group).expect("Expecting argument value");
-
-            attr_tokens.push(value.clone());
-
-            match (
-                next_eof(&mut args_group).is_some(),
-                next_exact_punct(&mut args_group, ",").as_deref() == Some(","),
-            ) {
-                (true, _) => {
-                    attrs.push(Attribute {
-                        name: name.clone(),
-                        tokens: std::mem::take(&mut attr_tokens),
-                    });
-                    break;
-                }
-                (false, true) => {
-                    attrs.push(Attribute {
-                        name: name.clone(),
-                        tokens: std::mem::take(&mut attr_tokens),
-                    });
-                }
-                _ => {}
-            }
-        }
-
-        return Some(Some(attrs));
+    if name != "difference" {
+        return Some(None);
     }
 
-    None
+    let mut args_group = next_group(&mut attr_group)
+        .expect("Expecting attribute body")
+        .stream()
+        .into_iter()
+        .peekable();
+
+    let mut attrs = vec![];
+    let mut attr_tokens = vec![];
+
+    loop {
+        let attribute_name = next_ident(&mut args_group).expect("Expecting attribute name");
+        attr_tokens.push(attribute_name);
+
+        // single-word attribute, like #[structdiff(whatever)]
+        match (
+            next_eof(&mut args_group).is_some(),
+            next_punct(&mut args_group).as_deref(),
+        ) {
+            (true, _) => {
+                attrs.push(Attribute {
+                    name: name.clone(),
+                    tokens: std::mem::take(&mut attr_tokens),
+                });
+                break;
+            }
+            (false, Some(",")) => {
+                attrs.push(Attribute {
+                    name: name.clone(),
+                    tokens: std::mem::take(&mut attr_tokens),
+                });
+                continue;
+            }
+            (false, Some("=")) => (), // continue and get next literal
+            _ => ()
+        }
+
+        let value = next_literal(&mut args_group).expect("Expecting argument value");
+
+        attr_tokens.push(value.clone());
+
+        match (
+            next_eof(&mut args_group).is_some(),
+            next_punct(&mut args_group).as_deref() == Some(","),
+        ) {
+            (true, _) => {
+                attrs.push(Attribute {
+                    name: name.clone(),
+                    tokens: std::mem::take(&mut attr_tokens),
+                });
+                break;
+            }
+            (false, true) => {
+                attrs.push(Attribute {
+                    name: name.clone(),
+                    tokens: std::mem::take(&mut attr_tokens),
+                });
+            }
+            _ => {}
+        }
+    }
+
+    return Some(Some(attrs));
 }
 
 fn next_attributes_list(source: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Vec<Attribute> {
@@ -360,6 +360,7 @@ fn next_fields(
 
         let attributes = next_attributes_list(&mut body);
         let _visibility = next_visibility_modifier(&mut body);
+
         let field_name = if named {
             let field_name = next_ident(&mut body).expect("Field name expected");
 
@@ -556,7 +557,6 @@ fn get_bounds(
                         }
                     }
                 }
-                eprint!("\n");
             }
         }
         _ => (),
