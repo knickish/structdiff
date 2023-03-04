@@ -103,14 +103,11 @@ pub fn unordered_hashcmp<
         let mut ret: Vec<UnorderedMapLikeRecursiveChange<K, V>> = vec![];
 
         for prev_entry in previous.into_iter() {
-            match current.remove_entry(prev_entry.0) {
-                None => {
-                    ret.push(UnorderedMapLikeRecursiveChange::new(
-                        prev_entry,
-                        Operation::Remove,
-                    ));
-                }
-                _ => (), // this is key only, so don't check/send a Change
+            if current.remove_entry(prev_entry.0).is_none() {
+                ret.push(UnorderedMapLikeRecursiveChange::new(
+                    prev_entry,
+                    Operation::Remove,
+                ));
             }
         }
 
@@ -193,14 +190,12 @@ pub fn apply_unordered_hashdiffs<
         }
     };
 
-    let (insertions, rem): (Vec<_>, Vec<_>) = diffs.into_iter().partition(|x| match &x {
-        UnorderedMapLikeRecursiveChange::Insert(_) => true,
-        _ => false,
-    });
-    let (removals, changes): (Vec<_>, Vec<_>) = rem.into_iter().partition(|x| match &x {
-        UnorderedMapLikeRecursiveChange::Remove(_) => true,
-        _ => false,
-    });
+    let (insertions, rem): (Vec<_>, Vec<_>) = diffs
+        .into_iter()
+        .partition(|x| matches!(&x, UnorderedMapLikeRecursiveChange::Insert(_)));
+    let (removals, changes): (Vec<_>, Vec<_>) = rem
+        .into_iter()
+        .partition(|x| matches!(&x, UnorderedMapLikeRecursiveChange::Remove(_)));
 
     let mut list_hash = HashMap::<K, V>::from_iter(list);
 
@@ -230,7 +225,7 @@ pub fn apply_unordered_hashdiffs<
 
     list_hash
         .into_iter()
-        .map(|(k, v)| (k.clone(), v.clone()))
+        .map(|(k, v)| (k, v))
         .collect::<Vec<(K, V)>>()
         .into_iter()
 }
@@ -340,6 +335,7 @@ mod nanoserde_impls {
     }
 }
 
+#[cfg(not(feature = "nanoserde"))]
 #[cfg(test)]
 mod test {
     #[cfg(feature = "nanoserde")]

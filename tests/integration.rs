@@ -1,6 +1,12 @@
-use std::collections::{BTreeSet, HashMap, HashSet, LinkedList};
+#![allow(unused_imports)]
 #[cfg(not(feature = "nanoserde"))]
 use std::hash::Hash;
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, LinkedList},
+    fmt::Debug,
+    num::Wrapping,
+    sync::{Arc, RwLock},
+};
 use structdiff::{Difference, StructDiff};
 
 #[cfg(feature = "serde")]
@@ -9,6 +15,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "nanoserde")]
 use nanoserde::{DeBin, SerBin};
 
+#[cfg(not(feature = "nanoserde"))]
 #[test]
 /// This should match the code used in README.md
 fn test_example() {
@@ -45,8 +52,8 @@ fn test_example() {
     assert_ne!(diffed, second);
 }
 
+#[cfg(not(feature = "nanoserde"))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "nanoserde", derive(SerBin, DeBin))]
 #[derive(Debug, PartialEq, Clone, Difference, Default)]
 pub struct Test {
     test1: i32,
@@ -56,6 +63,7 @@ pub struct Test {
     test5: Option<usize>,
 }
 
+#[cfg(not(feature = "nanoserde"))]
 #[test]
 fn test_derive() {
     let first: Test = Test {
@@ -80,8 +88,57 @@ fn test_derive() {
     assert_eq!(diffed, second);
 }
 
+// Trying to come up with all the edge cases that might be relevant
+#[allow(dead_code)]
+#[cfg(not(any(feature = "serde", feature = "nanoserde")))]
+#[derive(Difference)]
+pub struct TestDeriveAll<
+    'a,
+    'b: 'a,
+    A: PartialEq + 'static,
+    const C: usize,
+    B,
+    D,
+    LM: Ord = Option<isize>,
+    const N: usize = 4,
+> where
+    A: core::hash::Hash + std::cmp::Eq + Default,
+    LM: Ord + IntoIterator<Item = isize>,
+    [A; N]: Default,
+    [B; C]: Default,
+    [i32; N]: Default,
+    [B; N]: Default,
+    dyn Fn(&B): PartialEq + Clone + core::fmt::Debug,
+    (dyn core::fmt::Debug + Send + 'static): Debug,
+{
+    f1: (),
+    f2: [A; N],
+    f3: [i32; N],
+    f4: BTreeMap<LM, BTreeSet<<LM as IntoIterator>::Item>>,
+    f5: Option<(A, Option<&'a <LM as IntoIterator>::Item>)>,
+    f6: HashMap<A, BTreeSet<LM>>,
+    f7: Box<(Vec<LM>, HashSet<A>, [i128; u8::MIN as usize])>,
+    f8: BTreeSet<Wrapping<D>>,
+    #[difference(skip)]
+    f9: [B; C],
+    f10: [B; N],
+    r#f11: Option<&'b Option<usize>>,
+    #[difference(skip)]
+    f12: Option<Box<dyn Fn()>>,
+    #[difference(skip)]
+    f13: Vec<fn(A, &(dyn core::fmt::Debug + Sync + 'static)) -> !>,
+    #[difference(skip)]
+    f14: Vec<Box<dyn FnMut(A, LM) -> Box<dyn Fn(i32) -> i32>>>,
+    #[difference(skip)]
+    f15: Vec<fn()>,
+}
+
+#[cfg(not(feature = "nanoserde"))]
 #[derive(Debug, PartialEq, Clone, Difference)]
-struct TestSkip<A> {
+struct TestSkip<A>
+where
+    A: PartialEq,
+{
     test1: A,
     test2: String,
     #[difference(skip)]
@@ -89,6 +146,7 @@ struct TestSkip<A> {
     test4: f32,
 }
 
+#[cfg(not(feature = "nanoserde"))]
 #[test]
 fn test_derive_with_skip() {
     let first: TestSkip<i32> = TestSkip {
@@ -261,6 +319,7 @@ fn test_generics_skip() {
     assert_eq!(diffed.test5, second.test5);
 }
 
+#[cfg(not(feature = "nanoserde"))]
 mod derive_inner {
     use super::{StructDiff, Test};
     //tests that the associated type does not need to be exported manually
@@ -290,6 +349,7 @@ mod derive_inner {
     }
 }
 
+#[cfg(not(feature = "nanoserde"))]
 #[test]
 fn test_recurse() {
     #[derive(Debug, PartialEq, Clone, Difference)]
@@ -378,6 +438,7 @@ fn test_recurse() {
     assert_eq!(diffed, second);
 }
 
+#[cfg(not(feature = "nanoserde"))]
 #[test]
 fn test_collection_strategies() {
     #[derive(Debug, PartialEq, Clone, Difference, Default)]
@@ -435,6 +496,7 @@ fn test_collection_strategies() {
     assert_eq_unordered!(diffed.test3, second.test3);
 }
 
+#[cfg(not(feature = "nanoserde"))]
 #[test]
 fn test_key_value() {
     #[derive(Debug, PartialEq, Clone, Difference, Default)]

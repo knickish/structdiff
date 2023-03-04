@@ -8,7 +8,7 @@ pub use structdiff_derive::Difference;
 
 pub mod collections;
 
-pub trait StructDiff: PartialEq + Sized {
+pub trait StructDiff {
     /// A generated type used to represent the difference
     /// between two instances of a struct which implements
     /// the StructDiff trait.
@@ -50,6 +50,7 @@ pub trait StructDiff: PartialEq + Sized {
     /// features is enabled.
     ///
     /// ```
+    /// # #[cfg(not(feature = "nanoserde"))] {
     /// use structdiff::{Difference, StructDiff};
     ///
     /// #[derive(Debug, PartialEq, Clone, Difference)]
@@ -69,6 +70,7 @@ pub trait StructDiff: PartialEq + Sized {
     ///
     /// let diffed = first.apply(diffs);
     /// assert_eq!(diffed, second);
+    /// # }
     /// ```
     fn diff(&self, updated: &Self) -> Vec<Self::Diff>;
 
@@ -76,7 +78,10 @@ pub trait StructDiff: PartialEq + Sized {
     fn apply_single(&mut self, diff: Self::Diff);
 
     /// Apply a full diff to an owned self
-    fn apply(mut self, diffs: Vec<Self::Diff>) -> Self {
+    fn apply(mut self, diffs: Vec<Self::Diff>) -> Self
+    where
+        Self: Sized,
+    {
         for diff in diffs {
             self.apply_single(diff);
         }
