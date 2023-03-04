@@ -495,6 +495,7 @@ mod nanoserde_impls {
     }
 }
 
+#[cfg(not(feature = "nanoserde"))]
 #[cfg(test)]
 mod test {
     use std::collections::{BTreeMap, HashMap};

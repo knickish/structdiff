@@ -5,6 +5,8 @@
 //! https://ziglang.org/documentation/0.5.0/#toc-typeInfo
 
 use core::iter::Peekable;
+use std::collections::HashSet;
+use std::num::IntErrorKind;
 
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -27,6 +29,11 @@ pub enum Visibility {
     Private,
 }
 
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub struct Lifetime {
+    pub(crate) ident: String,
+}
+
 #[derive(Debug)]
 pub struct Field {
     pub attributes: Vec<Attribute>,
@@ -35,12 +42,85 @@ pub struct Field {
     pub ty: Type,
 }
 
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub enum ConstValType {
+    Value(isize),
+    Named(Box<Type>),
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub enum FnType {
+    Bare,
+    Closure { reusable: bool, fn_mut: bool },
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub enum Category {
+    Never,
+    Array {
+        content_type: Box<Type>,
+        len: Option<ConstValType>,
+    },
+    Tuple {
+        contents: Vec<Type>,
+    },
+    Named {
+        path: String,
+    },
+    Lifetime {
+        path: String,
+    },
+    Fn {
+        category: FnType,
+        args: Option<Box<Type>>,
+        return_type: Option<Box<Type>>,
+    },
+    #[allow(unused)]
+    UnNamed,
+    Object {
+        is_dyn: bool,
+        trait_names: Vec<Box<Type>>,
+    },
+    Associated {
+        base: Box<Type>,
+        as_trait: Box<Type>,
+        associated: Box<Type>,
+    },
+    AssociatedBound {
+        associated: String,
+        is: Box<Type>,
+    },
+}
+
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub struct Type {
-    pub is_option: bool,
-    pub path: String,
-    pub wraps: Option<Vec<String>>,
+    pub ident: Category,
+    pub wraps: Option<Vec<Type>>,
+    pub ref_type: Option<Option<Lifetime>>,
+    pub as_other: Option<Box<Type>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub enum Generic {
+    ConstGeneric {
+        name: String,
+        _type: Type,
+        default: Option<ConstValType>,
+    },
+    Generic {
+        name: String,
+        default: Option<Type>,
+        bounds: Vec<Type>,
+    },
+    Lifetime {
+        name: String,
+        bounds: Vec<Lifetime>,
+    },
+    WhereBounded {
+        name: String,
+        bounds: Vec<Type>,
+    },
 }
 
 #[derive(Debug)]
@@ -49,7 +129,7 @@ pub struct Struct {
     pub named: bool,
     pub fields: Vec<Field>,
     pub attributes: Vec<Attribute>,
-    pub generics: Vec<(String, Vec<String>)>,
+    pub generics: Vec<Generic>,
 }
 
 #[derive(Debug)]
@@ -65,7 +145,7 @@ pub struct Enum {
     pub name: String,
     pub variants: Vec<EnumVariant>,
     pub attributes: Vec<Attribute>,
-    pub generics: Vec<(String, Vec<String>)>,
+    pub generics: Vec<Generic>,
 }
 
 #[allow(dead_code)]
@@ -91,6 +171,275 @@ impl Data {
             Data::Enum(Enum { attributes, .. }) => &attributes[..],
             _ => unimplemented!(),
         }
+    }
+}
+
+impl Generic {
+    pub fn full(&self) -> String {
+        match &self {
+            Generic::ConstGeneric { name, .. } => name.clone(),
+            Generic::Generic { name, .. } => name.clone(),
+            Generic::Lifetime { name, .. } => name.clone(),
+            Generic::WhereBounded { name, .. } => name.clone(),
+        }
+    }
+
+    fn lifetime_prefix(&self) -> &str {
+        match &self {
+            Generic::Lifetime { .. } => "\'",
+            _ => "",
+        }
+    }
+
+    fn const_prefix(&self) -> &str {
+        match &self {
+            Generic::ConstGeneric { .. } => "const ",
+            _ => "",
+        }
+    }
+
+    pub fn ident_only(&self) -> String {
+        format!("{}{}", self.lifetime_prefix(), self.full())
+    }
+
+    pub fn ident_with_const(&self) -> String {
+        match &self {
+            Generic::ConstGeneric { .. } => self.full_with_const(&[], true),
+            _ => format!("{}{}", self.lifetime_prefix(), self.full()),
+        }
+    }
+
+    pub fn full_with_const(&self, extra_bounds: &[&str], bounds: bool) -> String {
+        let bounds = match (bounds, &self) {
+            (true, Generic::Lifetime { .. }) => self.get_bounds().join(" + "),
+            (true, _) => {
+                let mut bounds = self.get_bounds().join(" + ");
+                if !extra_bounds.is_empty() {
+                    if bounds.is_empty() {
+                        bounds = extra_bounds.join(" + ")
+                    } else {
+                        bounds = format!("{} + {}", bounds, extra_bounds.join(" + "));
+                    }
+                }
+                bounds
+            }
+            (_, Generic::ConstGeneric { .. }) => self.get_bounds().join(" + "),
+            (false, _) => String::new(),
+        };
+        match bounds.is_empty() {
+            true => format!(
+                "{}{}{}:",
+                self.const_prefix(),
+                self.lifetime_prefix(),
+                self.full()
+            ),
+            false => format!(
+                "{}{}{}: {}",
+                self.const_prefix(),
+                self.lifetime_prefix(),
+                self.full(),
+                bounds
+            ),
+        }
+    }
+
+    #[allow(unused)]
+    pub fn full_with_const_and_default(&self, extra_bounds: &[&str], bounds: bool) -> String {
+        let bounds = match (bounds, &self) {
+            (true, Generic::Lifetime { .. }) => String::new(),
+            (true, _) | (false, Generic::ConstGeneric { .. }) => {
+                let mut bounds = self.get_bounds().join(" + ");
+                if !extra_bounds.is_empty() {
+                    if bounds.is_empty() {
+                        bounds = extra_bounds.join(" + ")
+                    } else {
+                        bounds = vec![bounds, extra_bounds.join(" + ")].join(" + ")
+                    }
+                }
+                bounds
+            }
+            (false, _) => String::new(),
+        };
+        match bounds.is_empty() {
+            true => format!(
+                "{}{}{}{}",
+                self.const_prefix(),
+                self.lifetime_prefix(),
+                self.full(),
+                self.get_default()
+            ),
+            false => format!(
+                "{}{}{}: {}{}",
+                self.const_prefix(),
+                self.lifetime_prefix(),
+                self.full(),
+                bounds,
+                self.get_default()
+            ),
+        }
+    }
+
+    fn get_bounds(&self) -> Vec<String> {
+        match &self {
+            Generic::ConstGeneric { _type, .. } => vec![format!("{}", _type.full())],
+            Generic::Generic { bounds, .. } => bounds.iter().map(Type::full).collect(),
+            Generic::Lifetime { bounds, .. } => {
+                bounds.iter().map(|x| format!("'{}", x.ident)).collect()
+            }
+            Generic::WhereBounded { bounds, .. } => bounds.iter().map(Type::full).collect(),
+        }
+    }
+
+    fn get_default(&self) -> String {
+        match &self {
+            Generic::ConstGeneric {
+                default: Some(def), ..
+            } => match def {
+                ConstValType::Value(v) => format!("= {}", v),
+                ConstValType::Named(v) => format!("= {}", v.full()),
+            },
+            Generic::Generic {
+                default: Some(def), ..
+            } => format!("= {}", def.full()),
+            _ => String::new(),
+        }
+    }
+}
+
+impl Category {
+    pub fn path(&self, parent: &Type, no_ref:bool) -> String {
+        #[allow(unused)]
+        let mut holder: Option<Type> = None;
+        let parent = match no_ref {
+            true => {
+                holder = Some(parent.clone().set_ref_type(None));
+                holder.as_ref().unwrap()
+            }
+            false => parent
+        };
+        match self {
+            Category::Array { content_type, len } => match len {
+                Some(ConstValType::Value(val)) => format!("[{};{}]", content_type.full(), val),
+                Some(ConstValType::Named(const_gen)) => match &const_gen.as_other {
+                    Some(as_type) => format!(
+                        "[{};{} as {}]",
+                        content_type.full(),
+                        const_gen.full(),
+                        as_type.full()
+                    ),
+                    None => format!("[{};{}]", content_type.full(), const_gen.full()),
+                },
+                None => format!("[{}]", content_type.full()),
+            },
+            Category::Tuple { contents } => format!(
+                "({})",
+                contents
+                    .iter()
+                    .map(Type::full)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Category::Named { path } => path.clone(),
+            Category::UnNamed => String::default(),
+            Category::Object {
+                is_dyn,
+                trait_names,
+            } => match is_dyn {
+                true => format!("dyn {}", trait_names.iter().map(|x| x.full()).collect::<Vec<_>>().join(" + ")),
+                false => format!("impl {}", trait_names.iter().map(|x| x.full()).collect::<Vec<_>>().join(" + ")),
+            },
+            Category::Associated {
+                base,
+                as_trait,
+                associated,
+            } => format!(
+                "<{} as {}>::{}",
+                base.full(),
+                as_trait.full(),
+                associated.full()
+            ),
+            Category::AssociatedBound { associated, is } => format!(
+                "{}<{}= {}>",
+                associated,
+                parent.wraps.as_ref().unwrap()[0].full(),
+                is.full()
+            ),
+            Category::Lifetime { path } => format!("\'{}", path),
+            Category::Fn {
+                category,
+                args,
+                return_type,
+            } => {
+                let arg_str = args.as_ref().map(|x| x.full()).unwrap_or_default();
+                let return_str = return_type.as_ref().map(|x| format!(" -> {}", x.full())).unwrap_or_default();
+                match category {
+                    FnType::Bare => format!("fn({}){}", arg_str, return_str),
+                    FnType::Closure { reusable, fn_mut } => match fn_mut {
+                        true => format!("FnMut({}){}", arg_str, return_str),
+                        false => match reusable {
+                            true => format!("Fn({}){}", arg_str, return_str),
+                            false => format!("FnOnce({}){}", arg_str, return_str),
+                        }
+                    },
+                }
+            }
+            Category::Never => String::from("!"),
+        }
+    }
+}
+
+impl Type {
+    pub fn base(&self) -> String {
+        let mut base = match &self.ref_type {
+            Some(inner) => match inner {
+                Some(ident) => format!("&\'{} ", ident.ident),
+                None => String::from("& "),
+            },
+            None => String::default(),
+        };
+        base.push_str(&self.ident.path(&self, false));
+        base
+    }
+
+    pub fn wraps(&self) -> Vec<String> {
+        let mut ret = vec![self.base()];
+        let Some(wraps) = self.wraps.as_ref() else {
+            return ret;
+        };
+
+        for wrapped in wraps {
+            ret.extend_from_slice(&wrapped.wraps())
+        }
+        ret
+    }
+
+    pub fn full(&self) -> String {
+        let mut base = match &self.ref_type {
+            Some(inner) => match inner {
+                Some(ident) => format!("&\'{} ", ident.ident),
+                None => String::from("& "),
+            },
+            None => String::default(),
+        };
+        base.push_str(&self.ident.path(&self, false));
+        if let (Some(wrapped), Category::Named { .. }) = (&self.wraps, &self.ident) {
+            base.push('<');
+            base.push_str(
+                wrapped
+                    .into_iter()
+                    .map(|x| x.full())
+                    .collect::<Vec<_>>()
+                    .join(",")
+                    .as_str(),
+            );
+            base.push('>');
+        }
+        base
+    }
+
+    pub fn set_ref_type(mut self, ref_type: Option<Option<Lifetime>>) -> Self {
+        self.ref_type = ref_type;
+        self
     }
 }
 
@@ -186,32 +535,338 @@ pub fn next_group(source: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Opt
     }
 }
 
-pub fn _debug_current_token(source: &mut Peekable<impl Iterator<Item = TokenTree>>) {
-    println!("{:?}", source.peek());
+pub fn _debug_current_token(source: &mut Peekable<impl Iterator<Item = TokenTree>>) -> String {
+    format!("{:?}", source.peek())
 }
 
-fn next_type<T: Iterator<Item = TokenTree>>(mut source: &mut Peekable<T>) -> Option<Type> {
-    let group = next_group(&mut source);
-    if group.is_some() {
-        let mut group = group.unwrap().stream().into_iter().peekable();
+pub fn next_lifetime<T: Iterator<Item = TokenTree>>(source: &mut Peekable<T>) -> Option<Lifetime> {
+    let Some (TokenTree::Punct(punct)) = source.peek() else { return None; };
+    let '\'' = punct.as_char() else { return None; };
 
-        let mut tuple_type = Type {
-            is_option: false,
-            path: "".to_string(),
-            wraps: None,
+    let _ = source.next();
+    Some(Lifetime {
+        ident: next_ident(source).expect("must be an identifier after a single quote"),
+    })
+}
+
+fn next_type<T: Iterator<Item = TokenTree> + Clone>(mut source: &mut Peekable<T>) -> Option<Type> {
+    fn as_associated_definition<T: Iterator<Item = TokenTree> + Clone>(
+        source: &mut Peekable<T>,
+    ) -> Option<Type> {
+        if let Some(TokenTree::Punct(punct)) = source.peek() {
+            if punct.as_char() == '=' {
+                source.next();
+                let ty = next_type(source).expect("Missing type after \"as\"");
+                return Some(ty);
+            }
+        }
+        None
+    }
+    fn as_other_type<T: Iterator<Item = TokenTree> + Clone>(
+        source: &mut Peekable<T>,
+    ) -> Option<Type> {
+        if let Some(TokenTree::Ident(ident)) = source.peek() {
+            if ident.to_string() == "as" {
+                source.next();
+                let ty = next_type(source).expect("Missing type after \"as\"");
+                return Some(ty);
+            }
+        }
+        None
+    }
+    pub fn next_array<T: Iterator<Item = TokenTree> + Clone>(
+        mut source: &mut Peekable<T>,
+    ) -> Option<Type> {
+        let next = next_type(&mut source).expect("Must be type after array declaration");
+
+        let Some(_) = next_exact_punct(&mut source, ";") else {
+            // This is an unbounded array, legal at end for unsized types
+            return Some(Type { ident: Category::Array { content_type: Box::new(next.clone()), len: None }, wraps: Some(vec![next]), ref_type: None, as_other: None })
         };
 
-        while let Some(next_ty) = next_type(&mut group) {
-            tuple_type.path.push_str(&format!("{}, ", next_ty.path));
+        //need to cover both the const generic and literal case
+        let len = source.peek().unwrap().to_string();
+        match len.parse::<usize>() {
+            Ok(val) => Some(Type {
+                ident: Category::Array {
+                    content_type: Box::new(next.clone()),
+                    len: Some(ConstValType::Value(val as isize)),
+                },
+                wraps: Some(vec![next]),
+                ref_type: None,
+                as_other: None,
+            }),
+            Err(err) if err.kind() == &IntErrorKind::Zero => Some(Type {
+                ident: Category::Array {
+                    content_type: Box::new(next.clone()),
+                    len: Some(ConstValType::Value(0)),
+                },
+                wraps: Some(vec![next]),
+                ref_type: None,
+                as_other: None,
+            }),
+            _ => Some(Type {
+                ident: Category::Array {
+                    content_type: Box::new(next.clone()),
+                    len: Some(ConstValType::Named(Box::new(next_type(source).unwrap()))),
+                },
+                wraps: Some(vec![next]),
+                ref_type: None,
+                as_other: None,
+            }),
         }
+    }
+
+    pub fn next_tuple<T: Iterator<Item = TokenTree> + Clone>(
+        source: &mut Peekable<T>,
+    ) -> Option<Type> {
+        let mut wraps = vec![];
+        let mut path = "(".to_owned();
+        while let Some(next_ty) = next_type(source) {
+            wraps.push(next_ty.clone());
+            path.push_str(&format!("{}", next_ty.full()));
+            if next_exact_punct(source, ",").is_none() {
+                break;
+            }
+            path.push(',')
+        }
+        path.push(')');
+
+        let tuple_type = Type {
+            ident: Category::Tuple {
+                contents: wraps.clone(),
+            },
+            wraps: Some(wraps),
+            ref_type: None,
+            as_other: None,
+        };
 
         return Some(tuple_type);
     }
 
+    pub fn next_function_like<T: Iterator<Item = TokenTree> + Clone>(
+        source: &mut Peekable<T>,
+    ) -> Option<Type> {
+        pub fn next_return_type<T: Iterator<Item = TokenTree> + Clone>(
+            source: &mut Peekable<T>,
+        ) -> Option<Type> {
+            let mut tmp = source.clone();
+            let (Some(_), Some(_)) = ( next_exact_punct(&mut tmp, "-"),  next_exact_punct(&mut tmp, ">")) else {
+                return None;
+            };
+            drop(tmp);
+            let _ = (source.next(), source.next());
+            Some(next_type(source).expect("Missing return type"))
+        }
+
+        pub fn next_closure<T: Iterator<Item = TokenTree> + Clone>(
+            source: &mut Peekable<T>,
+            reusable: bool,
+            fn_mut: bool,
+        ) -> Type {
+            let args = next_group(source)
+                .map(|group| {
+                    next_type(&mut group.stream().into_iter().peekable()).expect("Missing args")
+                })
+                .map(Box::new);
+
+            let ret = next_return_type(source).map(Box::new);
+
+            let wraps = if args.as_ref().map(|x| x.wraps.as_ref()).is_some()
+                || ret.as_ref().map(|x| x.wraps.as_ref()).is_some()
+            {
+                let mut base = ret
+                    .iter()
+                    .filter_map(|x| x.wraps.as_ref())
+                    .cloned()
+                    .flatten()
+                    .collect::<Vec<Type>>();
+                base.extend(
+                    args.iter()
+                        .filter_map(|x| x.wraps.as_ref())
+                        .cloned()
+                        .flatten(),
+                );
+                Some(base)
+            } else {
+                None
+            };
+            Type {
+                ident: Category::Fn {
+                    category: FnType::Closure { reusable, fn_mut },
+                    args,
+                    return_type: ret,
+                },
+                wraps,
+                ref_type: None,
+                as_other: None,
+            }
+        }
+
+        let Some(TokenTree::Ident(ident)) = source.peek().clone() else {
+            return None;
+        };
+        let true = matches!(ident.to_string().as_str(), "fn" | "FnOnce" | "FnMut" | "Fn") else {
+            return None;
+       };
+        let tok_str = source.next().unwrap().to_string();
+
+        match tok_str.as_str() {
+            "fn" => {
+                let args = next_type(
+                    &mut next_group(source)
+                        .expect("Missing args group")
+                        .stream()
+                        .into_iter()
+                        .peekable(),
+                )
+                .map(Box::new)
+                .expect("Missing args");
+                let ret = next_return_type(source).map(Box::new);
+
+                let wraps =
+                    if args.wraps.is_some() || ret.as_ref().map(|x| x.wraps.as_ref()).is_some() {
+                        let mut base = ret
+                            .iter()
+                            .filter_map(|x| x.wraps.as_ref())
+                            .cloned()
+                            .flatten()
+                            .collect::<Vec<Type>>();
+                        base.extend_from_slice(args.wraps.clone().unwrap_or_default().as_ref());
+                        Some(base)
+                    } else {
+                        None
+                    };
+                Some(Type {
+                    ident: Category::Fn {
+                        category: FnType::Bare,
+                        args: Some(args),
+                        return_type: ret,
+                    },
+                    wraps,
+                    ref_type: None,
+                    as_other: None,
+                })
+            }
+            "Fn" => Some(next_closure(source, true, false)),
+            "FnMut" => Some(next_closure(source, true, true)),
+            "FnOnce" => Some(next_closure(source, false, false)),
+            _ => None,
+        }
+    }
+
+    pub fn next_object<T: Iterator<Item = TokenTree> + Clone>(
+        source: &mut Peekable<T>,
+    ) -> Option<Type> {
+        let Some(TokenTree::Ident(ident)) = source.peek() else {
+            return None
+        };
+        let true = matches!(ident.to_string().as_str(), "impl" | "dyn") else {
+             return None;
+        };
+        match source.next().unwrap().to_string().as_str() {
+            "impl" => {
+                let mut ident_types =
+                    vec![Box::new(next_type(source).expect("impl must be followed by trait"))];
+                while let Some(_) = next_exact_punct(source, "+") {
+                    ident_types.push(Box::new(next_type(source).expect("impl must be followed by trait")))
+                }
+                let ref_type = ident_types[0].ref_type.clone();
+                let as_other = ident_types[0].as_other.clone();
+                let wraps = ident_types[0].wraps.clone();
+                Some(Type {
+                    ident: Category::Object {
+                        is_dyn: false,
+                        trait_names: ident_types,
+                    },
+                    wraps,
+                    ref_type,
+                    as_other,
+                })
+            }
+            "dyn" => {
+                let mut ident_types =
+                    vec![Box::new(next_type(source).expect("impl must be followed by trait"))];
+                while let Some(_) = next_exact_punct(source, "+") {
+                    ident_types.push(Box::new(next_type(source).expect("impl must be followed by trait")))
+                }
+                let ref_type = ident_types[0].ref_type.clone();
+                let as_other = ident_types[0].as_other.clone();
+                let wraps = ident_types[0].wraps.clone();
+                Some(Type {
+                    ident: Category::Object {
+                        is_dyn: true,
+                        trait_names: ident_types,
+                    },
+                    wraps,
+                    ref_type,
+                    as_other,
+                })
+            }
+            _ => None,
+        }
+    }
+
+    //
+    //
+    
+    if let Some(_) = next_exact_punct(&mut source, "!") {
+        return Some(Type {
+            ident: Category::Never,
+            wraps: None,
+            ref_type: None,
+            as_other: None,
+        });
+    };
+
+    
+    let None = next_exact_punct(source, "\'") else {
+        return Some(Type{ ident: Category::Lifetime { path: next_ident(source).expect("Need lifetime name") }, wraps: None, ref_type: None, as_other: None })
+    };
+
+    let ref_type = match next_exact_punct(&mut source, "&") {
+        Some(_) => Some(next_lifetime(source)),
+        None => None,
+    };
+
+    
+    if let Some(group) = next_group(&mut source) {
+        let mut group_stream = group.stream().into_iter().peekable();
+
+        match group.delimiter() {
+            Delimiter::Bracket => {
+                return next_array(&mut group_stream).map(|x| x.set_ref_type(ref_type))
+            }
+            Delimiter::Parenthesis => return next_tuple(&mut group_stream).map(|x| x.set_ref_type(ref_type)),
+            Delimiter::Brace => (),
+
+            _ => {
+                _debug_current_token(&mut group_stream);
+                unimplemented!("Unexpected token: {}", _debug_current_token(&mut group_stream))
+            }
+        }
+    }
+
+    
+    if let Some(obj) = next_object(source) {
+        return Some(obj.set_ref_type(ref_type));
+    }
+
+    
+    if let Some(obj) = next_function_like(source) {
+        return Some(obj.set_ref_type(ref_type));
+    }
+
+    
     // read a path like a::b::c::d
-    let mut ty = next_ident(&mut source)?;
-    while let Some(_) = next_exact_punct(&mut source, ":") {
-        let _second_colon = next_exact_punct(&mut source, ":").expect("Expecting second :");
+    let mut ty = next_ident(&mut source).unwrap_or_default();
+    while let Some(TokenTree::Punct(_)) = source.peek() {
+        let mut tmp = source.clone();
+        let (Some(_), Some(_)) = ( next_exact_punct(&mut tmp, ":"),  next_exact_punct(&mut tmp, ":")) else {
+            break;
+        };
+        drop(tmp);
+        let _ = (source.next(), source.next()); //skip the colons
 
         let next_ident = next_ident(&mut source).expect("Expecting next path part after ::");
         ty.push_str(&format!("::{}", next_ident));
@@ -219,33 +874,81 @@ fn next_type<T: Iterator<Item = TokenTree>>(mut source: &mut Peekable<T>) -> Opt
 
     let angel_bracket = next_exact_punct(&mut source, "<");
     if angel_bracket.is_some() {
-        let mut generic_type = next_type(source).expect("Expecting generic argument");
+        if ty.is_empty() {
+            let ty = next_type(source).expect("Need a base type before 'as'");
+
+            assert!(
+                matches!(ty.ident, Category::Named { .. }),
+                "need a named type here"
+            );
+
+            //skip the close bracket and two colons that must follow to get an associated type
+            assert_eq!(Some(">".to_owned()), next_exact_punct(source, ">"));
+            assert_eq!(
+                (Some(":".to_owned()), Some(":".to_owned())),
+                (
+                    next_exact_punct(&mut source, ":"),
+                    next_exact_punct(&mut source, ":")
+                )
+            );
+            let associated =
+                next_type(source).expect("Must be an associated type name after the trait");
+
+            let as_trait = ty
+                .as_other
+                .clone()
+                .expect("Must be an as_other for an associated type");
+
+            return Some(Type {
+                ident: Category::Associated {
+                    base: Box::new(ty.clone()),
+                    as_trait,
+                    associated: Box::new(associated),
+                },
+                wraps: ty.wraps,
+                ref_type: ref_type,
+                as_other: None,
+            });
+        }
+
+        let mut generics =
+            vec![next_type(source).expect("Expecting at least one generic argument")];
         while let Some(_comma) = next_exact_punct(&mut source, ",") {
-            let next_ty = next_type(source).expect("Expecting generic argument");
-            generic_type.path.push_str(&format!(", {}", next_ty.path));
+            generics.push(next_type(source).expect("Expecting generic argument after comma"));
+        }
+
+        let as_other = as_other_type(source).map(Box::new);
+
+        if let Some(assoc_def) = as_associated_definition(source) {
+            let _closing_bracket =
+                next_exact_punct(&mut source, ">").expect("Expecting closing generic bracket");
+            return Some(Type {
+                ident: Category::AssociatedBound {
+                    associated: ty,
+                    is: Box::new(assoc_def),
+                },
+                wraps: Some(generics),
+                ref_type,
+                as_other,
+            });
         }
 
         let _closing_bracket =
             next_exact_punct(&mut source, ">").expect("Expecting closing generic bracket");
 
-        if ty == "Option" {
-            Some(Type {
-                path: generic_type.path.clone(),
-                is_option: true,
-                wraps: Some(split_types(generic_type.path)),
-            })
-        } else {
-            Some(Type {
-                path: format!("{}<{}>", ty, generic_type.path.clone()),
-                is_option: false,
-                wraps: Some(split_types(generic_type.path)),
-            })
-        }
-    } else {
         Some(Type {
-            path: ty.clone(),
-            is_option: false,
+            ident: Category::Named { path: ty },
+            wraps: Some(generics),
+            ref_type,
+            as_other,
+        })
+    } else {
+        let as_other = as_other_type(source).map(Box::new);
+        Some(Type {
+            ident: Category::Named { path: ty },
             wraps: None,
+            ref_type,
+            as_other,
         })
     }
 }
@@ -304,7 +1007,7 @@ fn next_attribute<T: Iterator<Item = TokenTree>>(
                 continue;
             }
             (false, Some("=")) => (), // continue and get next literal
-            _ => ()
+            _ => (),
         }
 
         let value = next_literal(&mut args_group).expect("Expecting argument value");
@@ -347,8 +1050,8 @@ fn next_attributes_list(source: &mut Peekable<impl Iterator<Item = TokenTree>>) 
     attributes
 }
 
-fn next_fields(
-    mut body: &mut Peekable<impl Iterator<Item = TokenTree>>,
+fn next_fields<T: Iterator<Item = TokenTree> + Clone>(
+    mut body: &mut Peekable<T>,
     named: bool,
 ) -> Vec<Field> {
     let mut fields = vec![];
@@ -376,16 +1079,16 @@ fn next_fields(
         fields.push(Field {
             attributes,
             vis: Visibility::Public,
-            field_name: field_name,
+            field_name,
             ty,
         });
     }
     fields
 }
 
-fn next_struct(mut source: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Struct {
+fn next_struct<T: Iterator<Item = TokenTree> + Clone>(mut source: &mut Peekable<T>) -> Struct {
     let struct_name = next_ident(&mut source).expect("Unnamed structs are not supported");
-    let generic_types = get_bounds(source);
+    let generics = get_all_bounds(source);
     let group = next_group(&mut source);
     // unit struct
     if group.is_none() {
@@ -397,7 +1100,7 @@ fn next_struct(mut source: &mut Peekable<impl Iterator<Item = TokenTree>>) -> St
             fields: vec![],
             attributes: vec![],
             named: false,
-            generics: vec![],
+            generics,
         };
     };
 
@@ -422,13 +1125,13 @@ fn next_struct(mut source: &mut Peekable<impl Iterator<Item = TokenTree>>) -> St
         named,
         fields,
         attributes: vec![],
-        generics: generic_types.into_iter().collect(),
+        generics,
     }
 }
 
-fn next_enum(mut source: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Enum {
+fn next_enum<T: Iterator<Item = TokenTree> + Clone>(mut source: &mut Peekable<T>) -> Enum {
     let enum_name = next_ident(&mut source).expect("Unnamed enums are not supported");
-    let generic_types = get_bounds(source);
+    let generic_types = get_all_bounds(source);
     let group = next_group(&mut source);
     // unit enum
     if group.is_none() {
@@ -488,79 +1191,179 @@ fn next_enum(mut source: &mut Peekable<impl Iterator<Item = TokenTree>>) -> Enum
         name: enum_name,
         variants,
         attributes: vec![],
-        generics: generic_types.into_iter().collect(),
+        generics: generic_types,
     }
 }
 
-fn get_bounds(
-    source: &mut Peekable<impl Iterator<Item = TokenTree>>,
-) -> Vec<(String, Vec<String>)> {
-    let mut ret = Vec::new();
-
-    // Angle bracket generics + bounds
-    match source.peek() {
-        Some(content) if content.to_string() == "<" => {
+fn next_const_generic<T: Iterator<Item = TokenTree> + Clone>(
+    source: &mut Peekable<T>,
+) -> (String, Type, Option<ConstValType>) {
+    let name = source
+        .next()
+        .expect("Missing generic parameter after 'const'")
+        .to_string();
+    assert_eq!(
+        source.next().unwrap().to_string(),
+        ":",
+        "Colon should follow const generic typename"
+    );
+    let cg_type = next_type(source).expect("Missing const generic type after 'colon'");
+    if let Some(_) = next_exact_punct(source, "=") {
+        if let Ok(default_value) = source
+            .peek()
+            .expect("default should follow equal for const generic")
+            .to_string()
+            .parse::<isize>()
+        {
             source.next();
-            let mut typename: Option<String> = None;
-            let mut boundname: Option<String> = None;
-            let mut generic_bounds = Vec::new();
-            let mut in_type = true;
-            while let Some(tok) = source.next() {
-                match tok.to_string().as_str() {
-                    ">" => {
-                        if let Some(boundname) = boundname.take() {
-                            generic_bounds.push(boundname)
-                        }
-                        if let Some(typename) = typename.take() {
-                            ret.push((typename, std::mem::take(&mut generic_bounds)))
-                        }
+            (name, cg_type, Some(ConstValType::Value(default_value)))
+        } else {
+            let def =
+                next_type(source).expect("must have either a value or other const as default");
+            (name, cg_type, Some(ConstValType::Named(Box::new(def))))
+        }
+    } else {
+        (name, cg_type, None)
+    }
+}
+
+fn next_generic<T: Iterator<Item = TokenTree> + Clone>(
+    source: &mut Peekable<T>,
+) -> Option<Generic> {
+    let Some(tok) = source.peek() else {
+        return None;
+    };
+    match tok {
+        TokenTree::Group(g) => {
+            if matches!(g.delimiter(), Delimiter::Brace) {
+                return None;
+            }
+            let mut bounds = vec![];
+            let _type = next_type(source).expect("must be a type in group");
+            if let Some(_) = next_exact_punct(source, ":") {
+                while let Some(bound) = next_type(source) {
+                    bounds.push(bound);
+                    if next_exact_punct(source, "+").is_none() {
                         break;
-                    }
-                    colon @ ":" => {
-                        if in_type {
-                            in_type = false;
-                        } else {
-                            if let Some(boundname) = boundname.as_mut() {
-                                *boundname += colon
-                            } else {
-                                boundname = Some(String::from(colon))
-                            }
-                        }
-                    },
-                    "," => {
-                        if let Some(boundname) = boundname.take() {
-                            generic_bounds.push(boundname)
-                        }
-                        if let Some(typename) = typename.take() {
-                            ret.push((typename, std::mem::take(&mut generic_bounds)))
-                        }
-                        in_type = true
-                    }
-                    "+" => {
-                        if let Some(boundname) = boundname.take() {
-                            generic_bounds.push(boundname)
-                        }
-                    }
-                    c => {
-                        if in_type {
-                            if let Some(typename) = typename.as_mut() {
-                                *typename += c
-                            } else {
-                                typename = Some(String::from(c))
-                            }
-                        } else {
-                            if let Some(boundname) = boundname.as_mut() {
-                                *boundname += c
-                            } else {
-                                boundname = Some(String::from(c))
-                            }
-                        }
                     }
                 }
             }
+
+            Some(Generic::WhereBounded { name: _type.full(), bounds })
         }
-        _ => (),
+        TokenTree::Ident(c) if c.to_string() == "const" => {
+            source.next();
+            let (name, _type, default) = next_const_generic(source);
+            Some(Generic::ConstGeneric {
+                name,
+                _type,
+                default,
+            })
+        }
+        TokenTree::Ident(_) => {
+            let mut default = None;
+            let ty = next_type(source).expect("Expected type name after \'const\' keyword");
+
+            let mut bounds = vec![];
+
+            if let Some(_) = next_exact_punct(source, ":") {
+                loop {
+                    if let Some(ty) = next_type(source) {
+                        bounds.push(ty);
+                    }
+                    if next_exact_punct(source, "+").is_none() {
+                        break;
+                    }
+                }
+            }
+
+            if let Some(_) = next_exact_punct(source, "=") {
+                default = Some(next_type(source).expect("Must be a default after eq sign"));
+            }
+            Some(Generic::Generic {
+                name: ty.full(),
+                default,
+                bounds,
+            })
+        }
+        TokenTree::Punct(punct) => match punct.as_char() {
+            '>' => None,
+            '\'' => {
+                let ty = next_lifetime(source).expect("must be lifetime after \' mark");
+                let mut bounds = vec![];
+                if let Some(_) = next_exact_punct(source, ":") {
+                    while let Some(bound) = next_lifetime(source) {
+                        bounds.push(bound);
+                        if next_exact_punct(source, "+").is_none() {
+                            break;
+                        }
+                    }
+                }
+                Some(Generic::Lifetime {
+                    name: ty.ident,
+                    bounds,
+                })
+            }
+            _ => unimplemented!("unexpected character: {}", _debug_current_token(source)),
+        },
+        TokenTree::Literal(_) => unimplemented!("should not be literals here"),
     }
+}
+
+fn get_all_bounds<T: Iterator<Item = TokenTree> + Clone>(source: &mut Peekable<T>) -> Vec<Generic> {
+    let mut ret = Vec::new();
+    let mut already = HashSet::new();
+    if source.peek().map_or(false, |x| x.to_string() == "<") {
+        source.next();
+    } else {
+        return ret;
+    }
+
+    // Angle bracket generics + bounds
+    // let mut typename: Option<String> = None;
+    // let mut boundname: Option<String> = None;
+    // let mut generic_bounds = Vec::new();
+    // let mut in_type = true;
+    while let Some(gen) = next_generic(source) {
+        if already.insert(gen.full()) {
+            ret.push(gen);
+        } else {
+            match (
+                ret.iter_mut().find(|x| x.full() == gen.full()).unwrap(),
+                gen,
+            ) {
+                (
+                    Generic::Generic { bounds, .. },
+                    Generic::Generic {
+                        bounds: other_bounds,
+                        ..
+                    },
+                ) => bounds.extend_from_slice(&other_bounds),
+                (
+                    Generic::Lifetime { bounds, .. },
+                    Generic::Lifetime {
+                        bounds: other_bounds,
+                        ..
+                    },
+                ) => bounds.extend_from_slice(&other_bounds),
+                (
+                    Generic::WhereBounded { bounds, .. },
+                    Generic::WhereBounded {
+                        bounds: other_bounds,
+                        ..
+                    },
+                ) => bounds.extend_from_slice(&other_bounds),
+                _ => {
+                    panic!("mismatched generic types")
+                }
+            }
+        }
+        let Some(_) = next_exact_punct(source, ",") else {
+            break;
+        };
+    }
+
+    let _ = next_exact_punct(source, ">").expect("Need closing generic bracket");
 
     // "where" generics + bounds
     if let Some(content) = source.peek() {
@@ -569,64 +1372,85 @@ fn get_bounds(
         } else {
             source.next();
         }
-
-        let mut typename = "".to_string();
-        let mut bound = "".to_string();
-        let mut generic_bounds = Vec::new();
-        let mut in_type = true;
-        while let Some(tok) = source.peek() {
-            match tok.to_string().as_str() {
-                end if end.starts_with("{") => {
-                    if typename.is_empty() {
-                        break;
+        
+        while let Some(gen) = next_generic(source) {
+            if already.insert(gen.full()) {
+                let gen = match gen {
+                    Generic::Generic { name, bounds, .. } => Generic::WhereBounded {
+                        name,
+                        bounds,
+                    },
+                    where_bounded @ Generic::WhereBounded { .. } => where_bounded,
+                    unused => {
+    
+                        unimplemented!("Shouldn't have unused lifetime or const generic in where bound: {}", unused.full())
                     }
-                    if let Some(entry) = ret.iter_mut().find(|x| typename == x.0) {
-                        if !bound.is_empty() {
-                            generic_bounds.push(std::mem::take(&mut bound));
-                        }
-                        entry
-                            .1
-                            .extend((std::mem::take(&mut generic_bounds)).into_iter());
-                    } else {
-                        panic!("Generics in where bounds must be previously declared in <angle brackets>")
-                    }
-                    break;
-                }
-                colon @ ":" => {
-                    if in_type {
-                        in_type = false;
-                    } else {
-                        bound += colon;
-                    }
-                }
-                "," => {
-                    if !bound.is_empty() {
-                        generic_bounds.push(std::mem::take(&mut bound));
-                    }
-                    if let Some(entry) = ret.iter_mut().find(|x| typename == x.0) {
-                        entry
-                            .1
-                            .extend((std::mem::take(&mut generic_bounds)).into_iter());
-                    } else {
-                        panic!("Generics in where bounds must be previously declared in <angle brackets>")
-                    }
-                    typename.clear();
-                    in_type = true
-                }
-                "+" => {
-                    if !bound.is_empty() {
-                        generic_bounds.push(std::mem::take(&mut bound));
-                    }
-                }
-                c => {
-                    if in_type {
-                        typename += c;
-                    } else {
-                        bound += c;
+                };
+                ret.push(gen);
+            } else {
+                match (
+                    ret.iter_mut().find(|x| x.full() == gen.full()).unwrap(),
+                    gen,
+                ) {
+                    (
+                        Generic::Generic { bounds, .. },
+                        Generic::Generic {
+                            bounds: other_bounds,
+                            ..
+                        },
+                    ) => bounds.extend_from_slice(&other_bounds),
+                    (
+                        Generic::Lifetime { bounds, .. },
+                        Generic::Lifetime {
+                            bounds: other_bounds,
+                            ..
+                        },
+                    ) => bounds.extend_from_slice(&other_bounds),
+                    (
+                        Generic::WhereBounded { bounds, .. },
+                        Generic::WhereBounded {
+                            bounds: other_bounds,
+                            ..
+                        },
+                    ) => bounds.extend_from_slice(&other_bounds),
+                    _ => {
+                        panic!("mismatched generic types")
                     }
                 }
             }
-            source.next();
+            let Some(_) = next_exact_punct(source, ",") else {
+                break;
+            };
+            let None = next_exact_punct(source, "{") else {
+                break;
+            };
+        }
+    }
+
+    for gen in ret.iter_mut() {
+        match gen {
+            Generic::Generic { bounds, .. } => {
+                *bounds = std::mem::take(bounds)
+                    .into_iter()
+                    .collect::<HashSet<_>>()
+                    .into_iter()
+                    .collect()
+            }
+            Generic::Lifetime { bounds, .. } => {
+                *bounds = std::mem::take(bounds)
+                    .into_iter()
+                    .collect::<HashSet<_>>()
+                    .into_iter()
+                    .collect()
+            }
+            Generic::WhereBounded { bounds, .. } => {
+                *bounds = std::mem::take(bounds)
+                    .into_iter()
+                    .collect::<HashSet<_>>()
+                    .into_iter()
+                    .collect()
+            }
+            _ => (),
         }
     }
 
@@ -664,21 +1488,8 @@ pub fn parse_data(input: TokenStream) -> Data {
 
     assert!(
         source.next().is_none(),
-        "Unexpected data after end of the struct"
+        "Unexpected data after end of the struct: {}",
+        _debug_current_token(&mut source)
     );
     res
-}
-
-fn split_types(combined: String) -> Vec<String> {
-    let whitespaced = combined
-        .chars()
-        .map(|c| match c.is_alphanumeric() {
-            true => c,
-            false => ' ',
-        })
-        .collect::<String>();
-    whitespaced
-        .split_ascii_whitespace()
-        .map(|x| x.to_string())
-        .collect()
 }
