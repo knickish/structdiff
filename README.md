@@ -1,6 +1,6 @@
 # structdiff
 
-A lightweight, zero-dependency struct diffing library which allows changed fields to be collected and applied. Derive `Difference` on a struct, then use the `StructDiff` trait to make and apply diffs. 
+A lightweight, zero-dependency struct diffing library which allows changed fields to be collected and applied. Derive `Difference` on a struct, then use the `StructDiff` trait to make and apply diffs. Supports optional serialization of the generated diff types with `serde` or `nanoserde` for ease of use. 
 
 ## Example:
 
@@ -54,6 +54,7 @@ For more examples take a look at [integration tests](/tests)
 
 ## Optional features
 - [`nanoserde`, `serde`] - Serialization of `Difference` derived associated types. Allows diffs to easily be sent over network.
+- `debug_diffs` - Derive `Debug` on the generated diff type
 
 ### Development status 
 This is being used actively for my own projects, although it's mostly working now. PRs will be accepted for either more tests or functionality.
