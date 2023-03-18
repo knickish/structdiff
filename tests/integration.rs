@@ -5,7 +5,6 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, LinkedList},
     fmt::Debug,
     num::Wrapping,
-    sync::{Arc, RwLock},
 };
 use structdiff::{Difference, StructDiff};
 
@@ -167,8 +166,8 @@ fn test_derive_with_skip() {
 
     #[cfg(feature = "serde")]
     {
-        let ser_diff = serde_json::to_string(&diffs).unwrap();
-        let deser_diff = serde_json::from_str(&ser_diff).unwrap();
+        let ser_diff = bincode::serialize(&diffs).unwrap();
+        let deser_diff = bincode::deserialize(&ser_diff).unwrap();
         let diffed_serde = first.clone().apply(deser_diff);
 
         assert_eq!(diffed_serde.test1, second.test1);
@@ -228,8 +227,8 @@ fn test_generics() {
 
     #[cfg(feature = "serde")]
     {
-        let ser_diff = serde_json::to_string(&diffs).unwrap();
-        let deser_diff = serde_json::from_str(&ser_diff).unwrap();
+        let ser_diff = bincode::serialize(&diffs).unwrap();
+        let deser_diff = bincode::deserialize(&ser_diff).unwrap();
         let diffed_serde = first.clone().apply(deser_diff);
 
         assert_eq!(diffed_serde, second);
@@ -286,8 +285,8 @@ fn test_generics_skip() {
 
     #[cfg(feature = "serde")]
     {
-        let ser_diff = serde_json::to_string(&diffs).unwrap();
-        let deser_diff = serde_json::from_str(&ser_diff).unwrap();
+        let ser_diff = bincode::serialize(&diffs).unwrap();
+        let deser_diff = bincode::deserialize(&ser_diff).unwrap();
         let diffed_serde = first.clone().apply(deser_diff);
 
         assert_eq!(diffed_serde.test1, second.test1);
@@ -418,8 +417,8 @@ fn test_recurse() {
 
     #[cfg(feature = "serde")]
     {
-        let ser_diff = serde_json::to_string(&diffs).unwrap();
-        let deser_diff = serde_json::from_str(&ser_diff).unwrap();
+        let ser_diff = bincode::serialize(&diffs).unwrap();
+        let deser_diff = bincode::deserialize(&ser_diff).unwrap();
         let diffed_serde = first.clone().apply(deser_diff);
 
         assert_eq!(diffed_serde, second);
@@ -467,8 +466,8 @@ fn test_collection_strategies() {
 
     #[cfg(feature = "serde")]
     {
-        let ser_diff = serde_json::to_string(&diffs).unwrap();
-        let deser_diff = serde_json::from_str(&ser_diff).unwrap();
+        let ser_diff = bincode::serialize(&diffs).unwrap();
+        let deser_diff = bincode::deserialize(&ser_diff).unwrap();
         let diffed_serde = first.clone().apply(deser_diff);
 
         use assert_unordered::assert_eq_unordered;
@@ -524,8 +523,8 @@ fn test_key_value() {
 
     #[cfg(feature = "serde")]
     {
-        let ser_diff = serde_json::to_string(&diffs).unwrap();
-        let deser_diff = serde_json::from_str(&ser_diff).unwrap();
+        let ser_diff = bincode::serialize(&diffs).unwrap();
+        let deser_diff = bincode::deserialize(&ser_diff).unwrap();
         let diffed_serde = first.clone().apply(deser_diff);
 
         use assert_unordered::assert_eq_unordered;

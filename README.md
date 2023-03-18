@@ -2,6 +2,11 @@
 
 A lightweight, zero-dependency struct diffing library which allows changed fields to be collected and applied. Derive `Difference` on a struct, then use the `StructDiff` trait to make and apply diffs. Supports optional serialization of the generated diff types with `serde` or `nanoserde` for ease of use. 
 
+[![Crates.io][crates_img]][crates_lnk]
+
+[crates_img]: https://img.shields.io/crates/v/structdiff.svg
+[crates_lnk]: https://crates.io/crates/structdiff
+
 ## Example:
 
 ```rust
