@@ -34,7 +34,11 @@ pub(crate) enum UnorderedArrayLikeDiffInternal<T> {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct UnorderedArrayLikeDiff<T>(UnorderedArrayLikeDiffInternal<T>);
 
-fn collect_into_map<'a, T: Hash + PartialEq + Eq + 'a, B: Iterator<Item = T> + ExactSizeIterator>(
+fn collect_into_map<
+    'a,
+    T: Hash + PartialEq + Eq + 'a,
+    B: Iterator<Item = T> + ExactSizeIterator,
+>(
     list: B,
 ) -> HashMap<T, usize> {
     let mut map: HashMap<T, usize> = HashMap::with_capacity(list.len());
@@ -93,7 +97,7 @@ pub fn unordered_hashcmp<
     'a,
     #[cfg(feature = "nanoserde")] T: Hash + Clone + PartialEq + Eq + SerBin + DeBin + 'a,
     #[cfg(not(feature = "nanoserde"))] T: Hash + Clone + PartialEq + Eq + 'a,
-    B: Iterator<Item = &'a T>+ ExactSizeIterator,
+    B: Iterator<Item = &'a T> + ExactSizeIterator,
 >(
     previous: B,
     current: B,
@@ -166,11 +170,14 @@ pub fn unordered_hashcmp<
 pub fn apply_unordered_hashdiffs<
     #[cfg(feature = "nanoserde")] T: Hash + Clone + PartialEq + Eq + SerBin + DeBin + 'static,
     #[cfg(not(feature = "nanoserde"))] T: Hash + Clone + PartialEq + Eq + 'static,
-    B: IntoIterator<Item = T>
+    B: IntoIterator<Item = T>,
 >(
     list: B,
     diffs: UnorderedArrayLikeDiff<T>,
-) -> impl Iterator<Item = T> where <B as IntoIterator>::IntoIter: ExactSizeIterator {
+) -> impl Iterator<Item = T>
+where
+    <B as IntoIterator>::IntoIter: ExactSizeIterator,
+{
     let diffs = match diffs {
         UnorderedArrayLikeDiff(UnorderedArrayLikeDiffInternal::Replace(replacement)) => {
             return replacement.into_iter();

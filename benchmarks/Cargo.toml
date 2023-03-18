@@ -1,0 +1,18 @@
+[package]
+name = "structdiff-benchmarks"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+structdiff  = { path = "..", features = ["serde"] }
+nanorand    = { version = "0.7.0" } 
+diff-struct = { version = "0.5.1" } 
+serde       = { version = "^1.0.0", features = ["derive"] }
+serde-diff  = { version = "0.4.1" }
+bincode     = { version = "1.3.3" }
+
+[profile.bench]
+lto = "fat"
+opt-level = 3
