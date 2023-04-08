@@ -5,6 +5,8 @@ extern crate proc_macro;
 mod shared;
 
 mod difference;
+use difference::derive_struct_diff_enum;
+
 use crate::difference::derive_struct_diff_struct;
 
 mod parse;
@@ -17,6 +19,7 @@ pub fn derive_struct_diff(input: proc_macro::TokenStream) -> proc_macro::TokenSt
     // ok we have an ident, hopefully it's a struct
     let ts = match &input {
         parse::Data::Struct(struct_) if struct_.named => derive_struct_diff_struct(struct_),
+        parse::Data::Enum(enum_) => derive_struct_diff_enum(enum_),
         _ => unimplemented!("Only structs are supported"),
     };
 
