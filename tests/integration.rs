@@ -132,6 +132,40 @@ pub struct TestDeriveAll<
     f15: Vec<fn()>,
 }
 
+#[cfg(not(any(feature = "serde", feature = "nanoserde")))]
+#[derive(PartialEq, Difference, Clone)]
+pub enum TestDeriveAllEnum<
+    'a,
+    'b: 'a,
+    A: PartialEq + 'static,
+    const C: usize,
+    B,
+    D,
+    LM: Ord = Option<isize>,
+    const N: usize = 4,
+> where
+    A: core::hash::Hash + std::cmp::Eq + Default,
+    LM: Ord + IntoIterator<Item = isize>,
+    [A; N]: Default,
+    [B; C]: Default,
+    [i32; N]: Default,
+    [B; N]: Default,
+    dyn Fn(&B): PartialEq + Clone + core::fmt::Debug,
+    (dyn std::cmp::PartialEq<A> + Send + 'static): Debug + Clone + PartialEq,
+{
+    F1(()),
+    F2([A; N]),
+    F3([i32; N]),
+    F4(BTreeMap<LM, BTreeSet<<LM as IntoIterator>::Item>>),
+    F5(Option<(A, Option<&'a <LM as IntoIterator>::Item>)>),
+    F6(HashMap<A, BTreeSet<LM>>),
+    F8(BTreeSet<Wrapping<D>>, BTreeSet<Wrapping<B>>),
+    F9 {},
+    F10 { subfield1: u64 },
+    r#F11(Option<&'b Option<usize>>),
+    F12,
+}
+
 #[cfg(not(feature = "nanoserde"))]
 #[derive(Debug, PartialEq, Clone, Difference)]
 struct TestSkip<A>

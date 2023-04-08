@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use alloc::format;
 use alloc::string::String;
 
-use crate::parse::{Category, ConstValType, Generic, Struct, Type};
+use crate::parse::{Category, ConstValType, Generic, Struct, Type, Enum};
 use crate::shared::{attrs_collection_type, attrs_recurse, attrs_skip};
 
 use proc_macro::TokenStream;
@@ -510,6 +510,286 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
         enum_impl_generics = format!(
             "<{}>",
             used_generics
+                .iter()
+                .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
+                .map(|gen| Generic::ident_only(gen))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        serde_bounds = serde_bound
+    )
+    .parse()
+    .unwrap()
+}
+
+pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
+    let derives: String = vec![
+        #[cfg(feature = "debug_diffs")]
+        "core::fmt::Debug",
+        "Clone",
+        #[cfg(feature = "nanoserde")]
+        "nanoserde::SerBin",
+        #[cfg(feature = "nanoserde")]
+        "nanoserde::DeBin",
+        #[cfg(feature = "serde")]
+        "serde::Serialize",
+        #[cfg(feature = "serde")]
+        "serde::Deserialize",
+    ]
+    .join(", ");
+
+    let mut replace_enum_body = String::new();
+    #[cfg(unused)]
+    let mut diff_enum_body = String::new();
+    let mut diff_body = String::new();
+    let mut apply_single_body = String::new();
+    #[allow(unused_mut)]
+    let mut type_aliases = String::new();
+    let mut used_generics: Vec<&Generic> = Vec::new();
+
+    let enum_name = String::from("__".to_owned() + enum_.name.as_str() + "StructDiffEnum");
+    let struct_generics_names_hash: HashSet<String> =
+        enum_.generics.iter().map(|x| x.full()).collect();
+
+    if enum_
+        .variants
+        .iter()
+        .any(|x| attrs_skip(&x.attributes)) {
+        panic!("Enum variants may not be skipped");
+    };
+
+    enum_
+        .variants
+        .iter()
+        .enumerate()
+        .for_each(|(_, field)| {
+            let field_name = &field.name;
+            if let Some(ty) = &field.ty {
+                used_generics.extend(enum_.generics.iter().filter(|x| x.full() == ty.ident.path(&ty, false)));
+            
+            
+                let to_add = enum_.generics.iter().filter(|x| ty.wraps().iter().find(|&wrapped_type| &x.full() == wrapped_type ).is_some());
+                used_generics.extend(to_add);
+            
+                used_generics.extend(get_used_lifetimes(&ty).into_iter().filter_map(|x| match struct_generics_names_hash.contains(&x) {
+                    true => Some(enum_.generics.iter().find(|generic| generic.full() == x ).unwrap()),
+                    false => None,
+                }));
+
+                for val in get_array_lens(&ty) {
+                    if let Some(const_gen) = enum_.generics.iter().find(|x| x.full() == val) {
+                        used_generics.push(const_gen)
+                    }
+                }
+            }
+            if let Some(ty) = &field.ty {
+                match (attrs_recurse(&field.attributes), attrs_collection_type(&field.attributes), ty.base() == "Option") {
+
+                    (false, None, false) => {  // The default case
+                        l!(replace_enum_body, " {}({}),", field_name, ty.full());
+
+                        if matches!(ty.ident, Category::UnNamed) {
+                            l!(
+                                apply_single_body,
+                                "variant @ Self::{}{{..}} => *self = variant,",
+                                field_name
+                            );
+        
+                            l!(
+                                diff_body,
+                                "variant @ Self::{}{{..}} => Self::Diff::Replace(variant),",
+                                field_name
+                            );
+                        } else {
+                            l!(
+                                apply_single_body,
+                                "variant @ Self::{}(..) => *self = variant,",
+                                field_name
+                            );
+        
+                            l!(
+                                diff_body,
+                                "variant @ Self::{}(..) => Self::Diff::Replace(variant),",
+                                field_name
+                            );
+                        }
+    
+                        
+                    },
+                    #[allow(unreachable_patterns)]
+                    _ => panic!("this combination of options is not yet supported, please file an issue")
+                }
+            } else { //empty variant
+                l!(replace_enum_body, " {},", field_name);
+
+                l!(
+                    apply_single_body,
+                    "variant @ Self::{}(..) => *self = variant,",
+                    field_name
+                );
+
+                l!(
+                    diff_body,
+                    "variant @ Self::{}(..) => Self::Diff::Replace(variant),",
+                    field_name
+                );
+            };
+
+           
+        });
+
+    #[allow(unused)]
+    let nanoserde_hack = String::new();
+    #[cfg(feature = "nanoserde")]
+    let nanoserde_hack = String::from("\nuse nanoserde::*;");
+
+    #[cfg(unused)]
+    let used_generics = {
+        let mut added: HashSet<String> = HashSet::new();
+        let mut ret = Vec::new();
+        for maybe_used in enum_.generics.iter() {
+            if added.insert(maybe_used.full()) && used_generics.contains(&maybe_used) {
+                ret.push(maybe_used.clone())
+            }
+        }
+
+        ret
+    };
+
+    #[inline(always)]
+    fn get_used_generic_bounds() -> &'static [&'static str] {
+        BOUNDS
+    }
+
+    #[cfg(feature = "serde")]
+    let serde_bound = {
+        let start = "\n#[serde(bound = \"";
+        let mid = used_generics
+            .iter()
+            .filter(|gen| !matches!(gen, Generic::Lifetime { .. } | Generic::ConstGeneric { .. }))
+            .map(|x| {
+                format!(
+                    "{}: serde::Serialize + serde::de::DeserializeOwned",
+                    x.ident_only()
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        let end = "\")]";
+        vec![start, &mid, end].join("")
+    };
+    #[cfg(not(feature = "serde"))]
+    let serde_bound = "";
+
+    format!(
+        "const _: () = {{
+            use structdiff::collections::*;
+            {type_aliases}
+            {nanoserde_hack}
+
+            /// Generated type from StructDiff
+            #[derive({derives})]{serde_bounds}
+            pub enum {enum_name}{enum_def_generics} 
+            where
+            {enum_where_bounds}
+            {{
+                Replace({struct_name}{struct_generics})
+            }}
+            
+            impl{impl_generics} StructDiff for {struct_name}{struct_generics} 
+            where 
+            {struct_where_bounds}
+            {{
+                type Diff = {enum_name}{enum_impl_generics};
+
+                fn diff(&self, updated: &Self) -> Vec<Self::Diff> {{
+                    if self == updated {{
+                        vec![]
+                    }} else {{
+                        vec![match updated.clone() {{
+                            {diff_body}
+                        }}]
+                    }}
+                }}
+
+                #[inline(always)]
+                fn apply_single(&mut self, diff: Self::Diff) {{
+                    match diff {{
+                        Self::Diff::Replace(diff) => match diff {{
+                            {apply_single_body}
+                        }}
+                    }}
+                }}
+            }}
+        }};",
+        type_aliases = type_aliases,
+        nanoserde_hack = nanoserde_hack,
+        derives = derives,
+        struct_name = enum_.name,
+        diff_body = diff_body,
+        enum_name = enum_name,
+        apply_single_body = apply_single_body,
+        enum_def_generics = format!(
+            "<{}>",
+            enum_
+                .generics
+                .iter()
+                .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
+                .map(|gen| Generic::ident_with_const(gen))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        enum_where_bounds = format!(
+            "{}",
+            enum_
+                .generics
+                .iter()
+                .filter(|gen| !matches!(
+                    gen,
+                     Generic::ConstGeneric { .. }
+                ))
+                .map(|gen| Generic::full_with_const(gen, get_used_generic_bounds(), true))
+                .collect::<Vec<_>>()
+                .join(",\n")
+        ),
+        impl_generics = format!(
+            "<{}>",
+            enum_
+                .generics
+                .iter()
+                .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
+                .map(|gen| Generic::ident_with_const(gen))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        struct_generics = format!(
+            "<{}>",
+            enum_
+                .generics
+                .iter()
+                .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
+                .map(|gen| Generic::ident_only(gen))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        struct_where_bounds = format!(
+            "{}",
+            enum_
+                .generics
+                .iter()
+                .filter(|gen| !matches!(gen, Generic::ConstGeneric { .. } | Generic::WhereBounded { .. }))
+                .map(|gen| Generic::full_with_const(gen, get_used_generic_bounds(), true))
+                .collect::<Vec<_>>().into_iter().chain(enum_
+                    .generics
+                    .iter()
+                    .filter(|gen| matches!(gen, Generic::WhereBounded { .. }))
+                    .map(|gen| Generic::full_with_const(gen, &[], true)).collect::<Vec<_>>().into_iter()).collect::<Vec<_>>()
+                .join(",\n")
+        ),
+        enum_impl_generics = format!(
+            "<{}>",
+            enum_
+                .generics
                 .iter()
                 .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
                 .map(|gen| Generic::ident_only(gen))

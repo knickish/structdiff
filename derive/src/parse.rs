@@ -75,7 +75,6 @@ pub enum Category {
         args: Option<Box<Type>>,
         return_type: Option<Box<Type>>,
     },
-    #[allow(unused)]
     UnNamed,
     Object {
         is_dyn: bool,
@@ -135,8 +134,7 @@ pub struct Struct {
 #[derive(Debug)]
 pub struct EnumVariant {
     pub name: String,
-    pub named: bool,
-    pub fields: Vec<Field>,
+    pub ty: Option<Type>,
     pub attributes: Vec<Attribute>,
 }
 
@@ -944,12 +942,21 @@ fn next_type<T: Iterator<Item = TokenTree> + Clone>(mut source: &mut Peekable<T>
         })
     } else {
         let as_other = as_other_type(source).map(Box::new);
-        Some(Type {
-            ident: Category::Named { path: ty },
-            wraps: None,
-            ref_type,
-            as_other,
-        })
+        if ty.is_empty() {
+            Some(Type {
+                ident: Category::UnNamed,
+                wraps: None,
+                ref_type,
+                as_other,
+            })
+        } else {
+            Some(Type {
+                ident: Category::Named { path: ty },
+                wraps: None,
+                ref_type,
+                as_other,
+            })
+        }
     }
 }
 
@@ -1154,32 +1161,21 @@ fn next_enum<T: Iterator<Item = TokenTree> + Clone>(mut source: &mut Peekable<T>
         let attributes = next_attributes_list(&mut body);
 
         let variant_name = next_ident(&mut body).expect("Unnamed variants are not supported");
-        let group = next_group(&mut body);
-        if group.is_none() {
+        let ty = next_type(&mut body);
+        let Some(ty) = ty else {
             variants.push(EnumVariant {
                 name: variant_name,
-                named: false,
-                fields: vec![],
+                ty: None,
                 attributes,
             });
             let _maybe_comma = next_exact_punct(&mut body, ",");
             continue;
-        }
-        let group = group.unwrap();
-        let delimiter = group.delimiter();
-        let named = match delimiter {
-            Delimiter::Parenthesis => false,
-            Delimiter::Brace => true,
-
-            _ => panic!("Enum with unsupported delimiter"),
         };
+
         {
-            let mut body = group.stream().into_iter().peekable();
-            let fields = next_fields(&mut body, named);
             variants.push(EnumVariant {
                 name: variant_name,
-                named,
-                fields,
+                ty: Some(ty),
                 attributes,
             });
         }
