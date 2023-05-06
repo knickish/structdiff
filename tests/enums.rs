@@ -1,3 +1,6 @@
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+#[allow(unused_imports)]
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fmt::Debug,

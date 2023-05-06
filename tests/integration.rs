@@ -3,6 +3,7 @@
 mod derives;
 mod enums;
 mod types;
+#[cfg(not(feature = "nanoserde"))]
 pub use types::{RandValue, Test, TestEnum, TestSkip};
 
 #[cfg(not(feature = "nanoserde"))]
@@ -255,6 +256,7 @@ fn test_generics_skip() {
     assert_eq!(diffed.test5, second.test5);
 }
 
+#[cfg(not(feature = "nanoserde"))]
 #[test]
 fn test_enums() {
     let mut follower = TestEnum::next();
