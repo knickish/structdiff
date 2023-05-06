@@ -1,4 +1,10 @@
 #![allow(unused_imports)]
+
+mod derives;
+mod enums;
+mod types;
+pub use types::{RandValue, Test, TestEnum, TestSkip};
+
 #[cfg(not(feature = "nanoserde"))]
 use std::hash::Hash;
 use std::{
@@ -52,17 +58,6 @@ fn test_example() {
 }
 
 #[cfg(not(feature = "nanoserde"))]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, PartialEq, Clone, Difference, Default)]
-pub struct Test {
-    test1: i32,
-    test2: String,
-    test3: Vec<i32>,
-    test4: f32,
-    test5: Option<usize>,
-}
-
-#[cfg(not(feature = "nanoserde"))]
 #[test]
 fn test_derive() {
     let first: Test = Test {
@@ -85,98 +80,6 @@ fn test_derive() {
     let diffed = first.apply(diffs);
 
     assert_eq!(diffed, second);
-}
-
-// Trying to come up with all the edge cases that might be relevant
-#[allow(dead_code)]
-#[cfg(not(any(feature = "serde", feature = "nanoserde")))]
-#[derive(Difference)]
-pub struct TestDeriveAll<
-    'a,
-    'b: 'a,
-    A: PartialEq + 'static,
-    const C: usize,
-    B,
-    D,
-    LM: Ord = Option<isize>,
-    const N: usize = 4,
-> where
-    A: core::hash::Hash + std::cmp::Eq + Default,
-    LM: Ord + IntoIterator<Item = isize>,
-    [A; N]: Default,
-    [B; C]: Default,
-    [i32; N]: Default,
-    [B; N]: Default,
-    dyn Fn(&B): PartialEq + Clone + core::fmt::Debug,
-    (dyn core::fmt::Debug + Send + 'static): Debug,
-{
-    f1: (),
-    f2: [A; N],
-    f3: [i32; N],
-    f4: BTreeMap<LM, BTreeSet<<LM as IntoIterator>::Item>>,
-    f5: Option<(A, Option<&'a <LM as IntoIterator>::Item>)>,
-    f6: HashMap<A, BTreeSet<LM>>,
-    f7: Box<(Vec<LM>, HashSet<A>, [i128; u8::MIN as usize])>,
-    f8: BTreeSet<Wrapping<D>>,
-    #[difference(skip)]
-    f9: [B; C],
-    f10: [B; N],
-    r#f11: Option<&'b Option<usize>>,
-    #[difference(skip)]
-    f12: Option<Box<dyn Fn()>>,
-    #[difference(skip)]
-    f13: Vec<fn(A, &(dyn core::fmt::Debug + Sync + 'static)) -> !>,
-    #[difference(skip)]
-    f14: Vec<Box<dyn FnMut(A, LM) -> Box<dyn Fn(i32) -> i32>>>,
-    #[difference(skip)]
-    f15: Vec<fn()>,
-}
-
-#[cfg(not(any(feature = "serde", feature = "nanoserde")))]
-#[derive(PartialEq, Difference, Clone)]
-pub enum TestDeriveAllEnum<
-    'a,
-    'b: 'a,
-    A: PartialEq + 'static,
-    const C: usize,
-    B,
-    D,
-    LM: Ord = Option<isize>,
-    const N: usize = 4,
-> where
-    A: core::hash::Hash + std::cmp::Eq + Default,
-    LM: Ord + IntoIterator<Item = isize>,
-    [A; N]: Default,
-    [B; C]: Default,
-    [i32; N]: Default,
-    [B; N]: Default,
-    dyn Fn(&B): PartialEq + Clone + core::fmt::Debug,
-    (dyn std::cmp::PartialEq<A> + Send + 'static): Debug + Clone + PartialEq,
-{
-    F1(()),
-    F2([A; N]),
-    F3([i32; N]),
-    F4(BTreeMap<LM, BTreeSet<<LM as IntoIterator>::Item>>),
-    F5(Option<(A, Option<&'a <LM as IntoIterator>::Item>)>),
-    F6(HashMap<A, BTreeSet<LM>>),
-    F8(BTreeSet<Wrapping<D>>, BTreeSet<Wrapping<B>>),
-    F9 {},
-    F10 { subfield1: u64 },
-    r#F11(Option<&'b Option<usize>>),
-    F12,
-}
-
-#[cfg(not(feature = "nanoserde"))]
-#[derive(Debug, PartialEq, Clone, Difference)]
-struct TestSkip<A>
-where
-    A: PartialEq,
-{
-    test1: A,
-    test2: String,
-    #[difference(skip)]
-    test3skip: Vec<i32>,
-    test4: f32,
 }
 
 #[cfg(not(feature = "nanoserde"))]
@@ -350,6 +253,18 @@ fn test_generics_skip() {
     assert_eq!(diffed.test3, second.test3);
     assert_ne!(diffed.test4, second.test4);
     assert_eq!(diffed.test5, second.test5);
+}
+
+#[test]
+fn test_enums() {
+    let mut follower = TestEnum::next();
+    let mut leader: TestEnum;
+    for _ in 0..100 {
+        leader = TestEnum::next();
+        let diff = follower.diff(&leader);
+        follower.apply_mut(diff);
+        assert_eq!(leader, follower)
+    }
 }
 
 #[cfg(not(feature = "nanoserde"))]
