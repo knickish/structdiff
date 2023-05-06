@@ -1,5 +1,7 @@
 use generators::{fill, rand_string};
 use nanorand::{Rng, WyRand};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use structdiff::{Difference, StructDiff};
 
 pub trait RandValue {
@@ -30,6 +32,8 @@ where
     pub test4: f32,
 }
 
+#[cfg(not(feature = "nanoserde"))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Difference, Default)]
 pub enum TestEnum {
     #[default]
@@ -43,6 +47,7 @@ pub enum TestEnum {
     F4(Test),
 }
 
+#[cfg(not(feature = "nanoserde"))]
 impl RandValue for Test {
     fn next() -> Self {
         let mut rng = WyRand::new();
@@ -59,6 +64,7 @@ impl RandValue for Test {
     }
 }
 
+#[cfg(not(feature = "nanoserde"))]
 impl RandValue for TestEnum {
     fn next() -> Self {
         let mut rng = WyRand::new();
