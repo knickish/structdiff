@@ -34,7 +34,7 @@ where
 
 #[allow(unused)]
 #[cfg(not(any(feature = "serde", feature = "nanoserde")))]
-#[derive(PartialEq, Difference, Clone)]
+#[derive(PartialEq, Difference, Clone, Debug)]
 pub enum TestDeriveAllEnum<
     'a,
     'b: 'a,
