@@ -11,6 +11,7 @@ use structdiff::{Difference, StructDiff};
 #[cfg(not(feature = "nanoserde"))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Difference, Default)]
+#[difference(setters)]
 pub struct Test {
     pub test1: i32,
     pub test2: String,
@@ -21,6 +22,7 @@ pub struct Test {
 
 #[cfg(not(feature = "nanoserde"))]
 #[derive(Debug, PartialEq, Clone, Difference)]
+#[difference(setters)]
 pub struct TestSkip<A>
 where
     A: PartialEq,

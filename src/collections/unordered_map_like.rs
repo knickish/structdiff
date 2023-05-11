@@ -508,6 +508,7 @@ mod test {
     #[test]
     fn test_key_only() {
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
+        #[difference(setters)]
         struct TestCollection {
             #[difference(collection_strategy = "unordered_map_like")]
             test1: HashMap<i32, i32>,
@@ -572,6 +573,7 @@ mod test {
     #[test]
     fn test_key_value() {
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
+        #[difference(setters)]
         struct TestCollection {
             #[difference(
                 collection_strategy = "unordered_map_like",

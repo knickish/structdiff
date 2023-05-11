@@ -436,12 +436,14 @@ mod test {
         #[cfg_attr(feature = "nanoserde", derive(DeBin, SerBin))]
         #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
+        #[difference(setters)]
         pub struct TestRecurse {
             recurse1: i32,
             recurse2: Option<String>,
         }
 
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
+        #[difference(setters)]
         struct TestCollection {
             #[difference(
                 collection_strategy = "unordered_map_like",
