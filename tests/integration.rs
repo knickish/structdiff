@@ -501,6 +501,7 @@ fn test_key_value() {
     assert_eq_unordered!(diffed.test1, second.test1);
 }
 
+#[cfg(not(feature = "nanoserde"))]
 #[cfg(feature = "generated_setters")]
 #[test]
 fn test_setters() {
