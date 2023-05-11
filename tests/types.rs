@@ -94,6 +94,7 @@ impl RandValue for TestEnum {
     }
 }
 
+#[cfg(not(feature = "nanoserde"))]
 #[derive(Difference, Default, PartialEq, Debug, Clone)]
 #[difference(setters)]
 pub struct TestSetters {
@@ -114,6 +115,7 @@ pub struct TestSetters {
     pub f6: BTreeMap<i32, Test>,
 }
 
+#[cfg(not(feature = "nanoserde"))]
 impl RandValue for TestSetters {
     fn next_seeded(rng: &mut WyRand) -> Self {
         TestSetters {
