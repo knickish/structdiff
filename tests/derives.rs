@@ -12,6 +12,7 @@ use structdiff::{Difference, StructDiff};
 #[allow(dead_code)]
 #[cfg(not(any(feature = "serde", feature = "nanoserde")))]
 #[derive(Difference)]
+// #[difference(setters)]
 pub struct TestDeriveAll<
     'a,
     'b: 'a,

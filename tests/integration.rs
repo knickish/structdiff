@@ -3,6 +3,7 @@
 mod derives;
 mod enums;
 mod types;
+use assert_unordered::{assert_eq_unordered, assert_eq_unordered_sort};
 #[cfg(not(feature = "nanoserde"))]
 pub use types::{RandValue, Test, TestEnum, TestSkip};
 
@@ -137,6 +138,7 @@ fn test_derive_with_skip() {
 #[cfg(not(feature = "nanoserde"))] // this is broken until nanoserde fixes its generic serde
 #[derive(Debug, PartialEq, Clone, Difference)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[difference(setters)]
 struct TestGenerics<A, B, C, RS: Eq + Hash> {
     test1: A,
     test2: B,
@@ -191,6 +193,7 @@ fn test_generics() {
 
 #[cfg(not(feature = "nanoserde"))]
 #[derive(Debug, PartialEq, Clone, Difference)]
+#[difference(setters)]
 struct TestGenericsSkip<A, B, C, RS: Eq + Hash> {
     test1: A,
     test2: B,
@@ -303,6 +306,7 @@ mod derive_inner {
 #[test]
 fn test_recurse() {
     #[derive(Debug, PartialEq, Clone, Difference)]
+    #[difference(setters)]
     struct TestRecurse {
         test1: i32,
         #[difference(recurse)]
@@ -495,4 +499,44 @@ fn test_key_value() {
 
     use assert_unordered::assert_eq_unordered;
     assert_eq_unordered!(diffed.test1, second.test1);
+}
+
+#[cfg(feature = "generated_setters")]
+#[test]
+fn test_setters() {
+    use types::TestSetters;
+    let mut base = TestSetters::default();
+    let mut end = TestSetters::default();
+    let mut partial_diffs = vec![];
+    let mut full_diffs = vec![];
+
+    for _ in 0..100 {
+        end = TestSetters::next();
+        partial_diffs.extend(base.testing123(end.f0.clone()));
+        partial_diffs.extend(base.set_f1_with_diff(end.f1.clone()));
+        partial_diffs.extend(base.set_f2_with_diff(end.f2.clone()));
+        partial_diffs.extend(base.set_f3_with_diff(end.f3.clone()));
+        partial_diffs.extend(base.set_f4_with_diff(end.f4.clone()));
+        partial_diffs.extend(base.set_f5_with_diff(end.f5.clone()));
+        partial_diffs.extend(base.set_f6_with_diff(end.f6.clone()));
+        let tmp = base.apply_ref(partial_diffs.clone());
+        assert_eq!(&tmp.f0, &end.f0);
+        assert_eq!(&tmp.f1, &end.f1);
+        assert_eq!(&tmp.f2, &end.f2);
+        assert_eq!(&tmp.f3, &end.f3);
+        assert_eq_unordered!(&tmp.f4, &end.f4);
+        assert_eq_unordered!(&tmp.f5, &end.f5);
+        assert_eq_unordered!(&tmp.f6, &end.f6);
+        base = end.clone();
+        full_diffs.extend(std::mem::take(&mut partial_diffs));
+    }
+
+    let modified = TestSetters::default().apply(full_diffs);
+    assert_eq!(modified.f0, end.f0);
+    assert_eq!(modified.f1, end.f1);
+    assert_eq!(modified.f2, end.f2);
+    assert_eq!(modified.f3, end.f3);
+    assert_eq_unordered_sort!(modified.f4, end.f4);
+    assert_eq_unordered!(modified.f5, end.f5);
+    assert_eq_unordered!(modified.f6, end.f6);
 }

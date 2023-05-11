@@ -48,18 +48,23 @@ assert_ne!(diffed, second);
 For more examples take a look at [integration tests](/tests)
 
 ## Derive macro attributes
-- `#[difference(skip)]`     - Do not consider this field when creating a diff
-- `#[difference(recurse)]`  - Generate a StructDiff for this field when creating a diff
+- `#[difference(skip)]` - Do not consider this field when creating a diff
+- `#[difference(recurse)]` - Generate a StructDiff for this field when creating a diff
 - `#[difference(collection_strategy = {})]` 
     - `"unordered_array_like"` - Generates a changeset for array-like collections of items which implement `Hash + Eq`, rather than cloning the entire list. (currently works for `Vec`, `BTreeSet`, `LinkedList`, and `HashSet`)
     - `"unordered_map_like"` - Generates a changeset for map-like collections for which the key implements `Hash + Eq`, rather than cloning the entire map. (currently works for `HashMap` and `BTreeMap`)
 - `#[difference(map_equality = {})]` - Used with `unordered_map_like`, specifies whether the equality check should consider keys only, or both keys and values
     - `"key_only"` - only replace a key-value pair for which the key has changed
     - `"key_and_value"` - replace a key-value pair if either the key or value has changed
+- `#[difference(setters)]` - Generate setters for all fields in the struct (used on struct)
+    - Example: for the `field1` of the `Example` struct used above, a function with the signature `set_field1_with_diff(&mut self, value: Option<usize>) -> Option<<Self as StructDiff>::Diff>` will be generated. Useful when a single field will be changed in a struct with many fields, as it saves the comparison of all other fields. 
+- `#[difference(setter)]` - Generate setters for this struct field (used on field)
+- `#[difference(setter_name = {})]` - Use this name instead of the default value when generating a setter for this field (used on field)
 
 ## Optional features
 - [`nanoserde`, `serde`] - Serialization of `Difference` derived associated types. Allows diffs to easily be sent over network.
 - `debug_diffs` - Derive `Debug` on the generated diff type
+- `generated_setters` - Enable generation of setters for struct fields. These setters automatically return a diff if a field's value is changed by the assignment.
 
 ### Development status 
 This is being used actively for my own projects, although it's mostly working now. PRs will be accepted for either more tests or functionality.

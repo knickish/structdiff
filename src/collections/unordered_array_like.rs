@@ -429,6 +429,7 @@ mod test {
     #[test]
     fn test_collection_strategies() {
         #[derive(Debug, PartialEq, Clone, Difference, Default)]
+        #[difference(setters)]
         struct TestCollection {
             #[difference(collection_strategy = "unordered_array_like")]
             test1: Vec<i32>,

@@ -21,6 +21,36 @@ pub enum CollectionStrategy {
     UnorderedMapLikeHash(MapStrategy),
 }
 
+#[cfg(feature = "generated_setters")]
+pub fn attrs_setter(attributes: &[crate::parse::Attribute]) -> (bool, bool, Option<String>) {
+    let skip = attributes
+    .iter()
+    .any(|attr| attr.tokens.len() == 1 && attr.tokens[0] == "skip_setter");
+    let local = attributes
+    .iter()
+    .any(|attr| attr.tokens.len() == 1 && attr.tokens[0] == "setter");
+
+    let Some(name_override) = attributes.iter().find_map(|attr| {
+        if attr.tokens.len() == 2 && attr.tokens[0] == "setter_name" {
+            
+            Some(attr.tokens[1].clone())
+        } else {
+            None
+        }
+    }) else {
+        return (local, skip, None);
+    };
+
+    (local, skip, Some(name_override))
+}
+
+#[cfg(feature = "generated_setters")]
+pub fn attrs_all_setters(attributes: &[crate::parse::Attribute]) -> bool {
+    attributes
+    .iter()
+    .any(|attr| attr.tokens.len() == 1 && attr.tokens[0] == "setters")
+}
+
 pub fn attrs_recurse(attributes: &[crate::parse::Attribute]) -> bool {
     attributes
         .iter()
