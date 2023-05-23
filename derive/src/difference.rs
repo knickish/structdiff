@@ -82,7 +82,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
     #[cfg(feature = "generated_setters")]
     let mut setters_body = String::new();
 
-    let enum_name = String::from("__".to_owned() + struct_.name.as_str() + "StructDiffEnum");
+    let enum_name = String::from("__".to_owned() + struct_.name.as_ref().unwrap().as_str() + "StructDiffEnum");
     let struct_generics_names_hash: HashSet<String> =
         struct_.generics.iter().map(|x| x.full()).collect();
 
@@ -689,7 +689,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
         type_aliases = type_aliases,
         nanoserde_hack = nanoserde_hack,
         derives = derives,
-        struct_name = struct_.name,
+        struct_name = struct_.name.as_ref().unwrap(),
         diff_body = diff_body,
         enum_name = enum_name,
         enum_body = diff_enum_body,
@@ -805,32 +805,32 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
         .iter()
         .enumerate()
         .for_each(|(_, field)| {
-            let field_name = &field.name;
-            if let Some(ty) = &field.ty {
-                used_generics.extend(enum_.generics.iter().filter(|x| x.full() == ty.ident.path(&ty, false)));
-            
-            
-                let to_add = enum_.generics.iter().filter(|x| ty.wraps().iter().find(|&wrapped_type| &x.full() == wrapped_type ).is_some());
-                used_generics.extend(to_add);
-            
-                used_generics.extend(get_used_lifetimes(&ty).into_iter().filter_map(|x| match struct_generics_names_hash.contains(&x) {
-                    true => Some(enum_.generics.iter().find(|generic| generic.full() == x ).unwrap()),
-                    false => None,
-                }));
+            dbg!(&field);
+            let field_name = field.field_name.as_ref().unwrap();
+            let ty = &field.ty ;
+            used_generics.extend(enum_.generics.iter().filter(|x| x.full() == ty.ident.path(&ty, false)));
+        
+        
+            let to_add = enum_.generics.iter().filter(|x| ty.wraps().iter().find(|&wrapped_type| &x.full() == wrapped_type ).is_some());
+            used_generics.extend(to_add);
+        
+            used_generics.extend(get_used_lifetimes(&ty).into_iter().filter_map(|x| match struct_generics_names_hash.contains(&x) {
+                true => Some(enum_.generics.iter().find(|generic| generic.full() == x ).unwrap()),
+                false => None,
+            }));
 
-                for val in get_array_lens(&ty) {
-                    if let Some(const_gen) = enum_.generics.iter().find(|x| x.full() == val) {
-                        used_generics.push(const_gen)
-                    }
+            for val in get_array_lens(&ty) {
+                if let Some(const_gen) = enum_.generics.iter().find(|x| x.full() == val) {
+                    used_generics.push(const_gen)
                 }
             }
-            if let Some(ty) = &field.ty {
+            if !matches!(ty.ident, Category::None) {
                 match (attrs_recurse(&field.attributes), attrs_collection_type(&field.attributes), ty.base() == "Option") {
 
                     (false, None, false) => {  // The default case
                         l!(replace_enum_body, " {}({}),", field_name, ty.full());
 
-                        if matches!(ty.ident, Category::UnNamed) {
+                        if matches!(ty.ident, Category::AnonymousStruct { .. }) {
                             l!(
                                 apply_single_body,
                                 "variant @ Self::{}{{..}} => *self = variant,",
@@ -866,13 +866,13 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
 
                 l!(
                     apply_single_body,
-                    "variant @ Self::{}(..) => *self = variant,",
+                    "variant @ Self::{} => *self = variant,",
                     field_name
                 );
 
                 l!(
                     diff_body,
-                    "variant @ Self::{}(..) => Self::Diff::Replace(variant),",
+                    "variant @ Self::{} => Self::Diff::Replace(variant),",
                     field_name
                 );
             };
