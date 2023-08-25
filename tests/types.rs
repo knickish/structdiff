@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use generators::{fill, rand_string};
+use generators::{fill, rand_bool, rand_string};
 use nanorand::{Rng, WyRand};
 #[cfg(feature = "nanoserde")]
 use nanoserde::{DeBin, SerBin};
@@ -52,11 +52,11 @@ where
 pub enum TestEnum {
     #[default]
     F0,
-    F1(()),
+    F1(bool),
     F2(String),
     F3 {
         field1: String,
-        field2: (),
+        field2: bool,
     },
     F4(Test),
 }
@@ -83,11 +83,11 @@ impl RandValue for TestEnum {
     fn next_seeded(rng: &mut WyRand) -> Self {
         match rng.generate_range(0..5) {
             0 => Self::F0,
-            1 => Self::F1(()),
+            1 => Self::F1(rand_bool(rng)),
             2 => Self::F2(rand_string(rng)),
             3 => Self::F3 {
                 field1: rand_string(rng),
-                field2: (),
+                field2: rand_bool(rng),
             },
             _ => Self::F4(Test::next()),
         }
@@ -142,6 +142,15 @@ impl RandValue for TestSetters {
 
 mod generators {
     use nanorand::{Rng, WyRand};
+
+    pub(super) fn rand_bool(rng: &mut WyRand) -> bool {
+        let base = rng.generate::<u8>() as usize;
+        if base % 2 == 0 {
+            true
+        } else {
+            false
+        }
+    }
 
     pub(super) fn rand_string(rng: &mut WyRand) -> String {
         let base = vec![(); rng.generate::<u8>() as usize];

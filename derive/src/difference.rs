@@ -619,7 +619,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                         .map(|gen| Generic::ident_with_const(gen))
                         .collect::<Vec<_>>()
                         .join(", "),
-                    struct_.name.clone(),
+                    struct_.name.clone().unwrap_or_else(|| String::from("Anonymous")),
                     struct_
                         .generics
                         .iter()

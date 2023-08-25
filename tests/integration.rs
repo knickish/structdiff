@@ -143,14 +143,15 @@ struct TestGenerics<A, B, C, RS: Eq + Hash> {
 
 #[test]
 fn test_generics() {
-    let first: TestGenerics<i32, usize, Option<()>, String> = TestGenerics {
+    type TestType = TestGenerics<i32, usize, Option<bool>, String>;
+    let first: TestType = TestGenerics {
         test1: 0,
         test2: 42,
-        test3: Some(()),
+        test3: Some(true),
         test4: [(String::from("test123"), 1)].into_iter().collect(),
     };
 
-    let second: TestGenerics<i32, usize, Option<()>, String> = TestGenerics {
+    let second: TestType = TestGenerics {
         test1: 0,
         test2: 42,
         test3: None,
@@ -198,15 +199,15 @@ struct TestGenericsSkip<A, B, C, RS: Eq + Hash> {
 
 #[test]
 fn test_generics_skip() {
-    let first: TestGenericsSkip<i32, usize, Option<()>, String> = TestGenericsSkip {
+    let first: TestGenericsSkip<i32, usize, Option<bool>, String> = TestGenericsSkip {
         test1: 0,
         test2: 42,
-        test3: Some(()),
+        test3: Some(true),
         test4: [(String::from("test123"), 1)].into_iter().collect(),
         test5: [(String::from("test123"), 1)].into_iter().collect(),
     };
 
-    let second: TestGenericsSkip<i32, usize, Option<()>, String> = TestGenericsSkip {
+    let second: TestGenericsSkip<i32, usize, Option<bool>, String> = TestGenericsSkip {
         test1: 0,
         test2: 42,
         test3: None,
