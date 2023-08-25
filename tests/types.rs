@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 
 use generators::{fill, rand_string};
 use nanorand::{Rng, WyRand};
+#[cfg(feature = "nanoserde")]
+use nanoserde::{DeBin, SerBin};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use structdiff::{Difference, StructDiff};
@@ -18,8 +20,8 @@ where
     fn next_seeded(rng: &mut WyRand) -> Self;
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "nanoserde", derive(SerBin, DeBin))]
 #[derive(Debug, PartialEq, Clone, Difference, Default)]
 #[difference(setters)]
 pub struct Test {
@@ -30,8 +32,8 @@ pub struct Test {
     pub test5: Option<usize>,
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[derive(Debug, PartialEq, Clone, Difference)]
+#[cfg_attr(feature = "nanoserde", derive(SerBin, DeBin))]
 #[difference(setters)]
 pub struct TestSkip<A>
 where
@@ -44,8 +46,8 @@ where
     pub test4: f32,
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "nanoserde", derive(SerBin, DeBin))]
 #[derive(Debug, PartialEq, Clone, Difference, Default)]
 pub enum TestEnum {
     #[default]
@@ -59,7 +61,6 @@ pub enum TestEnum {
     F4(Test),
 }
 
-#[cfg(not(feature = "nanoserde"))]
 impl RandValue for Test {
     fn next_seeded(rng: &mut WyRand) -> Self {
         Test {
@@ -78,7 +79,6 @@ impl RandValue for Test {
     }
 }
 
-#[cfg(not(feature = "nanoserde"))]
 impl RandValue for TestEnum {
     fn next_seeded(rng: &mut WyRand) -> Self {
         match rng.generate_range(0..5) {
@@ -94,7 +94,6 @@ impl RandValue for TestEnum {
     }
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[derive(Difference, Default, PartialEq, Debug, Clone)]
 #[difference(setters)]
 pub struct TestSetters {
@@ -115,7 +114,6 @@ pub struct TestSetters {
     pub f6: BTreeMap<i32, Test>,
 }
 
-#[cfg(not(feature = "nanoserde"))]
 impl RandValue for TestSetters {
     fn next_seeded(rng: &mut WyRand) -> Self {
         TestSetters {

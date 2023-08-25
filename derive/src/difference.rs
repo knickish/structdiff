@@ -805,7 +805,6 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
         .iter()
         .enumerate()
         .for_each(|(_, field)| {
-            dbg!(&field);
             let field_name = field.field_name.as_ref().unwrap();
             let ty = &field.ty ;
             used_generics.extend(enum_.generics.iter().filter(|x| x.full() == ty.ident.path(&ty, false)));
