@@ -81,12 +81,13 @@ impl TestBench {
 #[bench]
 fn bench_basic(b: &mut Bencher) {
     let mut rng = WyRand::new();
-    let first = std::hint::black_box(TestBench::generate_random(&mut rng));
+    let mut first = std::hint::black_box(TestBench::generate_random(&mut rng));
     let second = std::hint::black_box(TestBench::generate_random(&mut rng));
     b.iter(|| {
         let diff = StructDiff::diff(&first, &second);
-        std::hint::black_box(first.apply_ref(diff))
+        std::hint::black_box(first.apply_mut(diff));
     });
+    assert_eq!(first.b, second.b);
 }
 
 #[bench]
@@ -106,12 +107,13 @@ mod diff_struct_bench {
     #[bench]
     fn bench_basic(b: &mut Bencher) {
         let mut rng = WyRand::new();
-        let first = std::hint::black_box(TestBench::generate_random(&mut rng));
+        let mut first = std::hint::black_box(TestBench::generate_random(&mut rng));
         let second = std::hint::black_box(TestBench::generate_random(&mut rng));
         b.iter(|| {
             let diff = Diff::diff(&first, &second);
-            std::hint::black_box(Diff::apply(&mut first.clone(), &diff))
+            std::hint::black_box(Diff::apply(&mut first, &diff))
         });
+        assert_eq!(first.b, second.b);
     }
 
     #[bench]
@@ -134,21 +136,21 @@ mod serde_diff_bench {
     #[bench]
     fn bench_basic(b: &mut Bencher) {
         let mut rng = WyRand::new();
-        let first = std::hint::black_box(TestBench::generate_random(&mut rng));
+        let mut first = std::hint::black_box(TestBench::generate_random(&mut rng));
         let second = std::hint::black_box(TestBench::generate_random(&mut rng));
         let options = bincode::DefaultOptions::new()
             .with_fixint_encoding()
             .allow_trailing_bytes();
         b.iter(|| {
-            let mut target = second.clone();
             let mut diff = std::hint::black_box(
                 options
                     .serialize(&serde_diff::Diff::serializable(&first, &second))
                     .unwrap(),
             );
             let mut deserializer = bincode::Deserializer::from_slice(&mut diff[..], options);
-            serde_diff::Apply::apply(&mut deserializer, &mut target).unwrap();
+            serde_diff::Apply::apply(&mut deserializer, &mut first).unwrap();
         });
+        assert_eq!(first.b, second.b);
     }
 
     #[bench]
@@ -172,7 +174,6 @@ mod serde_diff_bench {
     }
 }
 
-#[cfg(test)]
 mod size_tests {
     use super::*;
 

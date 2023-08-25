@@ -4,10 +4,8 @@ mod derives;
 mod enums;
 mod types;
 use assert_unordered::{assert_eq_unordered, assert_eq_unordered_sort};
-#[cfg(not(feature = "nanoserde"))]
 pub use types::{RandValue, Test, TestEnum, TestSkip};
 
-#[cfg(not(feature = "nanoserde"))]
 use std::hash::Hash;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, LinkedList},
@@ -22,7 +20,6 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "nanoserde")]
 use nanoserde::{DeBin, SerBin};
 
-#[cfg(not(feature = "nanoserde"))]
 #[test]
 /// This should match the code used in README.md
 fn test_example() {
@@ -59,7 +56,6 @@ fn test_example() {
     assert_ne!(diffed, second);
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[test]
 fn test_derive() {
     let first: Test = Test {
@@ -84,7 +80,6 @@ fn test_derive() {
     assert_eq!(diffed, second);
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[test]
 fn test_derive_with_skip() {
     let first: TestSkip<i32> = TestSkip {
@@ -135,9 +130,9 @@ fn test_derive_with_skip() {
     assert_eq!(diffed.test4, second.test4);
 }
 
-#[cfg(not(feature = "nanoserde"))] // this is broken until nanoserde fixes its generic serde
 #[derive(Debug, PartialEq, Clone, Difference)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "nanoserde", derive(SerBin, DeBin))]
 #[difference(setters)]
 struct TestGenerics<A, B, C, RS: Eq + Hash> {
     test1: A,
@@ -146,17 +141,17 @@ struct TestGenerics<A, B, C, RS: Eq + Hash> {
     test4: HashMap<RS, A>,
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[test]
 fn test_generics() {
-    let first: TestGenerics<i32, usize, Option<()>, String> = TestGenerics {
+    type TestType = TestGenerics<i32, usize, Option<bool>, String>;
+    let first: TestType = TestGenerics {
         test1: 0,
         test2: 42,
-        test3: Some(()),
+        test3: Some(true),
         test4: [(String::from("test123"), 1)].into_iter().collect(),
     };
 
-    let second: TestGenerics<i32, usize, Option<()>, String> = TestGenerics {
+    let second: TestType = TestGenerics {
         test1: 0,
         test2: 42,
         test3: None,
@@ -191,7 +186,6 @@ fn test_generics() {
     assert_eq!(diffed.test4, second.test4);
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[derive(Debug, PartialEq, Clone, Difference)]
 #[difference(setters)]
 struct TestGenericsSkip<A, B, C, RS: Eq + Hash> {
@@ -203,18 +197,17 @@ struct TestGenericsSkip<A, B, C, RS: Eq + Hash> {
     test5: HashMap<RS, A>,
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[test]
 fn test_generics_skip() {
-    let first: TestGenericsSkip<i32, usize, Option<()>, String> = TestGenericsSkip {
+    let first: TestGenericsSkip<i32, usize, Option<bool>, String> = TestGenericsSkip {
         test1: 0,
         test2: 42,
-        test3: Some(()),
+        test3: Some(true),
         test4: [(String::from("test123"), 1)].into_iter().collect(),
         test5: [(String::from("test123"), 1)].into_iter().collect(),
     };
 
-    let second: TestGenericsSkip<i32, usize, Option<()>, String> = TestGenericsSkip {
+    let second: TestGenericsSkip<i32, usize, Option<bool>, String> = TestGenericsSkip {
         test1: 0,
         test2: 42,
         test3: None,
@@ -259,7 +252,6 @@ fn test_generics_skip() {
     assert_eq!(diffed.test5, second.test5);
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[test]
 fn test_enums() {
     let mut follower = TestEnum::next();
@@ -272,7 +264,6 @@ fn test_enums() {
     }
 }
 
-#[cfg(not(feature = "nanoserde"))]
 mod derive_inner {
     use super::{StructDiff, Test};
     //tests that the associated type does not need to be exported manually
@@ -302,7 +293,6 @@ mod derive_inner {
     }
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[test]
 fn test_recurse() {
     #[derive(Debug, PartialEq, Clone, Difference)]
@@ -392,7 +382,6 @@ fn test_recurse() {
     assert_eq!(diffed, second);
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[test]
 fn test_collection_strategies() {
     #[derive(Debug, PartialEq, Clone, Difference, Default)]
@@ -450,7 +439,6 @@ fn test_collection_strategies() {
     assert_eq_unordered!(diffed.test3, second.test3);
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[test]
 fn test_key_value() {
     #[derive(Debug, PartialEq, Clone, Difference, Default)]
@@ -501,7 +489,6 @@ fn test_key_value() {
     assert_eq_unordered!(diffed.test1, second.test1);
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[cfg(feature = "generated_setters")]
 #[test]
 fn test_setters() {
