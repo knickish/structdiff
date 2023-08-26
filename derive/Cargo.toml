@@ -1,9 +1,9 @@
 [package]
 name = "structdiff-derive"
-version = "0.5.7"
+version = "0.5.8"
 authors = ["Makepad <info@makepad.nl>", "Fedor <not.fl3@gmail.com>", "Kirk <knickish@gmail.com"]
 edition = "2018"
-description = "Fork of nanoserde's parsing library"
+description = "derive macro library for structdiff"
 license = "MIT"
 
 [lib]
