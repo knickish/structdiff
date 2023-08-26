@@ -1,12 +1,5 @@
-#![feature(test)]
-#![cfg(test)]
-
-extern crate test;
 use std::collections::HashSet;
 
-use test::Bencher;
-
-use diff::Diff;
 use nanorand::{Rng, WyRand};
 use structdiff::{Difference, StructDiff};
 
@@ -15,19 +8,19 @@ use structdiff::{Difference, StructDiff};
     Difference,
     PartialEq,
     Clone,
-    Diff,
     serde::Serialize,
-    serde::Deserialize,
-    serde_diff::SerdeDiff,
+    serde::Deserialize
 )]
-struct TestBench {
-    a: String,
-    b: i32,
+#[cfg_attr(feature = "compare", derive(diff::Diff))]
+#[cfg_attr(feature = "compare", derive(serde_diff::SerdeDiff))]
+pub struct TestBench {
+    pub a: String,
+    pub b: i32,
     #[difference(collection_strategy = "unordered_array_like")]
-    #[serde_diff(opaque)]
-    c: HashSet<String>,
+    #[cfg_attr(feature = "compare", serde_diff(opaque))]
+    pub c: HashSet<String>,
     #[difference(collection_strategy = "unordered_array_like")]
-    d: Vec<String>,
+    pub d: Vec<String>,
 }
 
 fn rand_string(rng: &mut WyRand) -> String {
@@ -47,7 +40,7 @@ fn rand_string_large(rng: &mut WyRand) -> String {
 }
 
 impl TestBench {
-    fn generate_random(rng: &mut WyRand) -> TestBench {
+    pub fn generate_random(rng: &mut WyRand) -> TestBench {
         TestBench {
             a: rand_string(rng),
             b: rng.generate::<i32>(),
@@ -62,7 +55,7 @@ impl TestBench {
         }
     }
 
-    fn generate_random_large(rng: &mut WyRand) -> TestBench {
+    pub fn generate_random_large(rng: &mut WyRand) -> TestBench {
         TestBench {
             a: rand_string_large(rng),
             b: rng.generate::<i32>(),
@@ -78,110 +71,17 @@ impl TestBench {
     }
 }
 
-#[bench]
-fn bench_basic(b: &mut Bencher) {
-    let mut rng = WyRand::new();
-    let mut first = std::hint::black_box(TestBench::generate_random(&mut rng));
-    let second = std::hint::black_box(TestBench::generate_random(&mut rng));
-    b.iter(|| {
-        let diff = StructDiff::diff(&first, &second);
-        std::hint::black_box(first.apply_mut(diff));
-    });
-    assert_eq!(first.b, second.b);
-}
-
-#[bench]
-fn bench_large(b: &mut Bencher) {
-    let mut rng = WyRand::new();
-    let first = std::hint::black_box(TestBench::generate_random_large(&mut rng));
-    let second = std::hint::black_box(TestBench::generate_random_large(&mut rng));
-    b.iter(|| {
-        let diff = StructDiff::diff(&first, &second);
-        std::hint::black_box(first.apply_ref(diff))
-    });
-}
-
-mod diff_struct_bench {
-    use super::*;
-
-    #[bench]
-    fn bench_basic(b: &mut Bencher) {
-        let mut rng = WyRand::new();
-        let mut first = std::hint::black_box(TestBench::generate_random(&mut rng));
-        let second = std::hint::black_box(TestBench::generate_random(&mut rng));
-        b.iter(|| {
-            let diff = Diff::diff(&first, &second);
-            std::hint::black_box(Diff::apply(&mut first, &diff))
-        });
-        assert_eq!(first.b, second.b);
-    }
-
-    #[bench]
-    fn bench_large(b: &mut Bencher) {
-        let mut rng = WyRand::new();
-        let first = std::hint::black_box(TestBench::generate_random_large(&mut rng));
-        let second = std::hint::black_box(TestBench::generate_random_large(&mut rng));
-        b.iter(|| {
-            let diff = Diff::diff(&first, &second);
-            std::hint::black_box(Diff::apply(&mut first.clone(), &diff))
-        });
-    }
-}
-
-mod serde_diff_bench {
-    use bincode::Options;
-
-    use super::*;
-
-    #[bench]
-    fn bench_basic(b: &mut Bencher) {
-        let mut rng = WyRand::new();
-        let mut first = std::hint::black_box(TestBench::generate_random(&mut rng));
-        let second = std::hint::black_box(TestBench::generate_random(&mut rng));
-        let options = bincode::DefaultOptions::new()
-            .with_fixint_encoding()
-            .allow_trailing_bytes();
-        b.iter(|| {
-            let mut diff = std::hint::black_box(
-                options
-                    .serialize(&serde_diff::Diff::serializable(&first, &second))
-                    .unwrap(),
-            );
-            let mut deserializer = bincode::Deserializer::from_slice(&mut diff[..], options);
-            serde_diff::Apply::apply(&mut deserializer, &mut first).unwrap();
-        });
-        assert_eq!(first.b, second.b);
-    }
-
-    #[bench]
-    fn bench_large(b: &mut Bencher) {
-        let mut rng = WyRand::new();
-        let first = std::hint::black_box(TestBench::generate_random_large(&mut rng));
-        let second = std::hint::black_box(TestBench::generate_random_large(&mut rng));
-        let options = bincode::DefaultOptions::new()
-            .with_fixint_encoding()
-            .allow_trailing_bytes();
-        b.iter(|| {
-            let mut target = second.clone();
-            let mut diff = std::hint::black_box(
-                options
-                    .serialize(&serde_diff::Diff::serializable(&first, &second))
-                    .unwrap(),
-            );
-            let mut deserializer = bincode::Deserializer::from_slice(&mut diff[..], options);
-            serde_diff::Apply::apply(&mut deserializer, &mut target).unwrap();
-        });
-    }
-}
-
+#[cfg(test)]
 mod size_tests {
     use super::*;
 
     #[test]
     fn test_sizes() {
         size_basic();
+        #[cfg(feature = "compare")]
         serde_diff_size::size_basic();
         size_large();
+        #[cfg(feature = "compare")]
         serde_diff_size::size_large();
     }
 
@@ -209,6 +109,7 @@ mod size_tests {
         println!("StructDiff - large: {} bytes", bytes as f64 / 100.0)
     }
 
+    #[cfg(feature = "compare")]
     mod serde_diff_size {
         use bincode::Options;
 

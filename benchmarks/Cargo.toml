@@ -8,11 +8,15 @@ edition = "2021"
 [dependencies]
 structdiff  = { path = "..", features = ["serde"] }
 nanorand    = { version = "0.7.0" } 
-diff-struct = { version = "0.5.1" } 
+diff-struct = { version = "0.5.1", optional = true} 
 serde       = { version = "^1.0.0", features = ["derive"] }
-serde-diff  = { version = "0.4.1" }
+serde-diff  = { version = "0.4.1", optional = true}
 bincode     = { version = "1.3.3" }
+
+[features]
+compare = ["dep:serde-diff", "dep:diff-struct"]
 
 [profile.bench]
 lto = "fat"
 opt-level = 3
+debug = true
