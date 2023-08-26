@@ -1,5 +1,6 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 
+use assert_unordered::assert_eq_unordered_sort;
 use nanorand::{Rng, WyRand};
 use structdiff::{Difference, StructDiff};
 
@@ -21,6 +22,10 @@ pub struct TestBench {
     pub c: HashSet<String>,
     #[difference(collection_strategy = "unordered_array_like")]
     pub d: Vec<String>,
+    #[difference(collection_strategy = "unordered_map_like", map_equality="key_only")]
+    pub e: HashMap<i32, String>,
+    #[difference(collection_strategy = "unordered_map_like", map_equality="key_and_value")]
+    pub f: HashMap<i32, String>
 }
 
 fn rand_string(rng: &mut WyRand) -> String {
@@ -52,6 +57,14 @@ impl TestBench {
                 .map(|_| rand_string(rng))
                 .into_iter()
                 .collect(),
+            e: (0..rng.generate::<u8>())
+            .map(|_| (rng.generate::<i32>(), rand_string(rng)))
+            .into_iter()
+            .collect(),
+            f: (0..rng.generate::<u8>())
+            .map(|_| (rng.generate::<i32>(), rand_string(rng)))
+            .into_iter()
+            .collect(),
         }
     }
 
@@ -67,7 +80,24 @@ impl TestBench {
                 .map(|_| rand_string(rng))
                 .into_iter()
                 .collect(),
+            e: (0..rng.generate::<u16>())
+                .map(|_| (rng.generate::<i32>(), rand_string(rng)))
+                .into_iter()
+                .collect(),
+            f: (0..rng.generate::<u16>())
+                .map(|_| (rng.generate::<i32>(), rand_string(rng)))
+                .into_iter()
+                .collect(),
         }
+    }
+
+    pub fn assert_eq(self, right: TestBench) {
+        assert_eq!(self.a, right.a);
+        assert_eq!(self.b, right.b);
+        assert_eq_unordered_sort!(self.c, right.c);
+        assert_eq_unordered_sort!(self.d, right.d);
+        assert_eq_unordered_sort!(self.e.iter().map(|x| x.0).collect::<Vec<_>>(), right.e.iter().map(|x| x.0).collect::<Vec<_>>());
+        assert_eq_unordered_sort!(self.e, right.e);
     }
 }
 

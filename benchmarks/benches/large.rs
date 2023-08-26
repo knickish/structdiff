@@ -36,7 +36,7 @@ fn bench_large(c: &mut Criterion) {
 
 #[cfg(feature = "compare")]
 mod diff_struct_bench {
-    use super::{Criterion, black_box, TestBench, WyRand, SAMPLE_SIZE, MEASUREMENT_TIME};
+    use super::{Criterion, black_box, TestBench, WyRand, SAMPLE_SIZE, MEASUREMENT_TIME, SEED};
     use diff::Diff;
 
     pub(super) fn bench_large(c: &mut Criterion) {
@@ -57,7 +57,7 @@ mod diff_struct_bench {
 
 #[cfg(feature = "compare")]
 mod serde_diff_bench {
-    use super::{Criterion, black_box, TestBench, WyRand, SAMPLE_SIZE, MEASUREMENT_TIME};
+    use super::{Criterion, black_box, TestBench, WyRand, SAMPLE_SIZE, MEASUREMENT_TIME, SEED};
     use bincode::Options;
 
     pub(super) fn bench_large(c: &mut Criterion) {

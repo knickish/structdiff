@@ -31,13 +31,13 @@ fn bench_basic(c: &mut Criterion) {
         black_box(first.apply_mut(diff));
     }));
     group.finish();
-    assert_eq!(first.b, second.b);
+    first.assert_eq(second);
 }
 
 
 #[cfg(feature = "compare")]
 mod diff_struct_bench {
-    use super::{Criterion, black_box, TestBench, WyRand, SAMPLE_SIZE, MEASUREMENT_TIME};
+    use super::{Criterion, black_box, TestBench, WyRand, SAMPLE_SIZE, MEASUREMENT_TIME, SEED};
     use diff::Diff;
 
     pub(super) fn bench_basic(c: &mut Criterion) {
@@ -59,7 +59,7 @@ mod diff_struct_bench {
 
 #[cfg(feature = "compare")]
 mod serde_diff_bench {
-    use super::{Criterion, black_box, TestBench, WyRand, SAMPLE_SIZE, MEASUREMENT_TIME};
+    use super::{Criterion, black_box, TestBench, WyRand, SAMPLE_SIZE, MEASUREMENT_TIME, SEED};
     use bincode::Options;
 
     pub(super) fn bench_basic(c: &mut Criterion) {
