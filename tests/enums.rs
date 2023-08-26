@@ -8,7 +8,6 @@ use std::{
 };
 use structdiff::{Difference, StructDiff};
 
-#[cfg(not(feature = "nanoserde"))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Difference, Default)]
 #[difference(setters)]
@@ -20,7 +19,6 @@ pub struct Test {
     pub test5: Option<usize>,
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[derive(Debug, PartialEq, Clone, Difference)]
 #[difference(setters)]
 pub struct TestSkip<A>
