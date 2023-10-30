@@ -149,7 +149,7 @@ pub fn unordered_hashcmp<
                         current_entry,
                         Operation::Change(prev_entry.1.diff(current_entry.1)),
                     ))
-                } // this is key only, so don't check/send a Change
+                }
                 _ => (), // no change
             }
         }
@@ -178,12 +178,12 @@ pub fn apply_unordered_hashdiffs<
 >(
     list: B,
     diffs: UnorderedMapLikeRecursiveDiff<K, V>,
-) -> impl Iterator<Item = (K, V)> {
+) -> Box<dyn Iterator<Item = (K, V)>> {
     let diffs = match diffs {
         UnorderedMapLikeRecursiveDiff(UnorderedMapLikeRecursiveDiffInternal::Replace(
             replacement,
         )) => {
-            return replacement.into_iter();
+            return Box::new(replacement.into_iter());
         }
         UnorderedMapLikeRecursiveDiff(UnorderedMapLikeRecursiveDiffInternal::Modify(diffs)) => {
             diffs
@@ -223,11 +223,7 @@ pub fn apply_unordered_hashdiffs<
         list_hash.insert(key, value);
     }
 
-    list_hash
-        .into_iter()
-        .map(|(k, v)| (k, v))
-        .collect::<Vec<(K, V)>>()
-        .into_iter()
+    Box::new(list_hash.into_iter())
 }
 
 #[cfg(feature = "nanoserde")]
@@ -335,7 +331,6 @@ mod nanoserde_impls {
     }
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[cfg(test)]
 mod test {
     #[cfg(feature = "nanoserde")]

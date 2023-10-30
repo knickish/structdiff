@@ -930,6 +930,7 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
 
             /// Generated type from StructDiff
             #[derive({derives})]{serde_bounds}
+            #[allow(non_camel_case_types)]
             pub enum {enum_name}{enum_def_generics} 
             where
             {enum_where_bounds}

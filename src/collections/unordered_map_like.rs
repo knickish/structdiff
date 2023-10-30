@@ -87,6 +87,7 @@ enum Operation {
 
 impl<K, V> UnorderedMapLikeChange<K, V> {
     fn new(item: (K, V), count: usize, insert_or_remove: Operation) -> Self {
+        #[cfg(feature = "debug_asserts")]
         debug_assert_ne!(count, 0);
         match (insert_or_remove, count) {
             (Operation::Insert, 1) => UnorderedMapLikeChange::InsertSingle((item.0, item.1)),
@@ -230,10 +231,10 @@ pub fn apply_unordered_hashdiffs<
 >(
     list: B,
     diffs: UnorderedMapLikeDiff<K, V>,
-) -> impl Iterator<Item = (K, V)> {
+) -> Box<dyn Iterator<Item = (K, V)>> {
     let diffs = match diffs {
         UnorderedMapLikeDiff(UnorderedMapLikeDiffInternal::Replace(replacement)) => {
-            return replacement.into_iter();
+            return Box::new(replacement.into_iter());
         }
         UnorderedMapLikeDiff(UnorderedMapLikeDiffInternal::Modify(diffs)) => diffs,
     };
@@ -248,7 +249,7 @@ pub fn apply_unordered_hashdiffs<
     });
     let holder: Vec<_> = list.into_iter().collect();
     // let ref_holder: Vec<_> = holder.iter().map(|(k, v)| (k, v)).collect();
-    let mut list_hash = collect_into_key_eq_map(holder.iter().map(|(k, v)| (k, v)));
+    let mut list_hash = collect_into_key_eq_map(holder.iter().map(|t| (&t.0, &t.1)));
 
     for remove in removals {
         match remove {
@@ -320,17 +321,19 @@ pub fn apply_unordered_hashdiffs<
                 }
             },
             _ => {
-                #[cfg(debug_assertions)]
+                #[cfg(all(debug_assertions, feature = "debug_asserts"))]
                 panic!("Sorting failure")
             }
         }
     }
 
-    list_hash
-        .into_iter()
-        .flat_map(|(k, (v, count))| std::iter::repeat((k.clone(), v.clone())).take(count))
-        .collect::<Vec<(K, V)>>()
-        .into_iter()
+    Box::new(
+        list_hash
+            .into_iter()
+            .flat_map(|(k, (v, count))| std::iter::repeat((k.clone(), v.clone())).take(count))
+            .collect::<Vec<_>>()
+            .into_iter(),
+    )
 }
 
 #[cfg(feature = "nanoserde")]
@@ -495,7 +498,6 @@ mod nanoserde_impls {
     }
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[cfg(test)]
 mod test {
     use std::collections::{BTreeMap, HashMap};

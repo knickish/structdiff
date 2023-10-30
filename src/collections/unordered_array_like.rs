@@ -60,6 +60,7 @@ enum InsertOrRemove {
 
 impl<T> UnorderedArrayLikeChange<T> {
     fn new(item: T, count: usize, insert_or_remove: InsertOrRemove) -> Self {
+        #[cfg(feature = "debug_asserts")]
         debug_assert_ne!(count, 0);
         match (insert_or_remove, count) {
             (InsertOrRemove::Insert, 1) => UnorderedArrayLikeChange::InsertSingle(item),
@@ -174,13 +175,13 @@ pub fn apply_unordered_hashdiffs<
 >(
     list: B,
     diffs: UnorderedArrayLikeDiff<T>,
-) -> impl Iterator<Item = T>
+) -> Box<dyn Iterator<Item = T>>
 where
     <B as IntoIterator>::IntoIter: ExactSizeIterator,
 {
     let diffs = match diffs {
         UnorderedArrayLikeDiff(UnorderedArrayLikeDiffInternal::Replace(replacement)) => {
-            return replacement.into_iter();
+            return Box::new(replacement.into_iter());
         }
         UnorderedArrayLikeDiff(UnorderedArrayLikeDiffInternal::Modify(diffs)) => diffs,
     };
@@ -232,7 +233,7 @@ where
                 _ => (),
             },
             _ => {
-                #[cfg(debug_assertions)]
+                #[cfg(all(debug_assertions, feature = "debug_asserts"))]
                 panic!("Sorting failure")
             }
         }
@@ -269,17 +270,17 @@ where
                 }
             },
             _ => {
-                #[cfg(debug_assertions)]
+                #[cfg(all(debug_assertions, feature = "debug_asserts"))]
                 panic!("Sorting failure")
             }
         }
     }
 
-    list_hash
-        .into_iter()
-        .flat_map(|(k, v)| std::iter::repeat(k).take(v))
-        .collect::<Vec<T>>()
-        .into_iter()
+    Box::new(
+        list_hash
+            .into_iter()
+            .flat_map(|(k, v)| std::iter::repeat(k).take(v)),
+    )
 }
 
 #[cfg(feature = "nanoserde")]
@@ -416,7 +417,6 @@ mod nanoserde_impls {
     }
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[cfg(test)]
 mod test {
     use std::collections::{HashSet, LinkedList};
