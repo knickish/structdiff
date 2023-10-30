@@ -8,8 +8,8 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use nanorand::WyRand;
 use structdiff::StructDiff;
 use structdiff_benchmarks::TestBench;
-const SAMPLE_SIZE: usize = 500;
-const MEASUREMENT_TIME: Duration = Duration::from_secs(10);
+const SAMPLE_SIZE: usize = 1000;
+const MEASUREMENT_TIME: Duration = Duration::from_secs(25);
 const SEED: u64 = 42;
 
 #[cfg(feature = "compare")]

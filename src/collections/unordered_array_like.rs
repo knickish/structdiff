@@ -174,13 +174,13 @@ pub fn apply_unordered_hashdiffs<
 >(
     list: B,
     diffs: UnorderedArrayLikeDiff<T>,
-) -> impl Iterator<Item = T>
+) -> Box<dyn Iterator<Item = T>>
 where
     <B as IntoIterator>::IntoIter: ExactSizeIterator,
 {
     let diffs = match diffs {
         UnorderedArrayLikeDiff(UnorderedArrayLikeDiffInternal::Replace(replacement)) => {
-            return replacement.into_iter();
+            return Box::new(replacement.into_iter());
         }
         UnorderedArrayLikeDiff(UnorderedArrayLikeDiffInternal::Modify(diffs)) => diffs,
     };
@@ -275,11 +275,11 @@ where
         }
     }
 
-    list_hash
-        .into_iter()
-        .flat_map(|(k, v)| std::iter::repeat(k).take(v))
-        .collect::<Vec<T>>()
-        .into_iter()
+    Box::new(
+        list_hash
+            .into_iter()
+            .flat_map(|(k, v)| std::iter::repeat(k).take(v)),
+    )
 }
 
 #[cfg(feature = "nanoserde")]

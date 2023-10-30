@@ -230,10 +230,10 @@ pub fn apply_unordered_hashdiffs<
 >(
     list: B,
     diffs: UnorderedMapLikeDiff<K, V>,
-) -> impl Iterator<Item = (K, V)> {
+) -> Box<dyn Iterator<Item = (K, V)>> {
     let diffs = match diffs {
         UnorderedMapLikeDiff(UnorderedMapLikeDiffInternal::Replace(replacement)) => {
-            return replacement.into_iter();
+            return Box::new(replacement.into_iter());
         }
         UnorderedMapLikeDiff(UnorderedMapLikeDiffInternal::Modify(diffs)) => diffs,
     };
@@ -248,7 +248,7 @@ pub fn apply_unordered_hashdiffs<
     });
     let holder: Vec<_> = list.into_iter().collect();
     // let ref_holder: Vec<_> = holder.iter().map(|(k, v)| (k, v)).collect();
-    let mut list_hash = collect_into_key_eq_map(holder.iter().map(|(k, v)| (k, v)));
+    let mut list_hash = collect_into_key_eq_map(holder.iter().map(|t| (&t.0, &t.1)));
 
     for remove in removals {
         match remove {
@@ -326,11 +326,13 @@ pub fn apply_unordered_hashdiffs<
         }
     }
 
-    list_hash
-        .into_iter()
-        .flat_map(|(k, (v, count))| std::iter::repeat((k.clone(), v.clone())).take(count))
-        .collect::<Vec<(K, V)>>()
-        .into_iter()
+    Box::new(
+        list_hash
+            .into_iter()
+            .flat_map(|(k, (v, count))| std::iter::repeat((k.clone(), v.clone())).take(count))
+            .collect::<Vec<_>>()
+            .into_iter(),
+    )
 }
 
 #[cfg(feature = "nanoserde")]
