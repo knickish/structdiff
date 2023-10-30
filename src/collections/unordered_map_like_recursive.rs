@@ -223,7 +223,7 @@ pub fn apply_unordered_hashdiffs<
         list_hash.insert(key, value);
     }
 
-    Box::new(list_hash.into_iter().map(|(k, v)| (k, v)))
+    Box::new(list_hash.into_iter())
 }
 
 #[cfg(feature = "nanoserde")]
@@ -331,7 +331,6 @@ mod nanoserde_impls {
     }
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[cfg(test)]
 mod test {
     #[cfg(feature = "nanoserde")]

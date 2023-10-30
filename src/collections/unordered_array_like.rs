@@ -60,6 +60,7 @@ enum InsertOrRemove {
 
 impl<T> UnorderedArrayLikeChange<T> {
     fn new(item: T, count: usize, insert_or_remove: InsertOrRemove) -> Self {
+        #[cfg(feature = "debug_asserts")]
         debug_assert_ne!(count, 0);
         match (insert_or_remove, count) {
             (InsertOrRemove::Insert, 1) => UnorderedArrayLikeChange::InsertSingle(item),
@@ -232,7 +233,7 @@ where
                 _ => (),
             },
             _ => {
-                #[cfg(debug_assertions)]
+                #[cfg(all(debug_assertions, feature = "debug_asserts"))]
                 panic!("Sorting failure")
             }
         }
@@ -269,7 +270,7 @@ where
                 }
             },
             _ => {
-                #[cfg(debug_assertions)]
+                #[cfg(all(debug_assertions, feature = "debug_asserts"))]
                 panic!("Sorting failure")
             }
         }
@@ -416,7 +417,6 @@ mod nanoserde_impls {
     }
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[cfg(test)]
 mod test {
     use std::collections::{HashSet, LinkedList};

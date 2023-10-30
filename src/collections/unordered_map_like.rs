@@ -87,6 +87,7 @@ enum Operation {
 
 impl<K, V> UnorderedMapLikeChange<K, V> {
     fn new(item: (K, V), count: usize, insert_or_remove: Operation) -> Self {
+        #[cfg(feature = "debug_asserts")]
         debug_assert_ne!(count, 0);
         match (insert_or_remove, count) {
             (Operation::Insert, 1) => UnorderedMapLikeChange::InsertSingle((item.0, item.1)),
@@ -320,7 +321,7 @@ pub fn apply_unordered_hashdiffs<
                 }
             },
             _ => {
-                #[cfg(debug_assertions)]
+                #[cfg(all(debug_assertions, feature = "debug_asserts"))]
                 panic!("Sorting failure")
             }
         }
@@ -497,7 +498,6 @@ mod nanoserde_impls {
     }
 }
 
-#[cfg(not(feature = "nanoserde"))]
 #[cfg(test)]
 mod test {
     use std::collections::{BTreeMap, HashMap};
