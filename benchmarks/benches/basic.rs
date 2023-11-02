@@ -15,19 +15,20 @@ const SEED: u64 = 42;
 #[cfg(feature = "compare")]
 criterion_group!(
     benches,
-    bench_basic,
+    bench_basic_generation,
+    bench_basic_full,
     diff_struct_bench::bench_basic,
     serde_diff_bench::bench_basic
 );
 #[cfg(not(feature = "compare"))]
-criterion_group!(benches, bench_basic);
+criterion_group!(benches, bench_basic_generation, bench_basic_full);
 
 criterion_main!(benches);
 
-fn bench_basic(c: &mut Criterion) {
+fn bench_basic_generation(c: &mut Criterion) {
     const GROUP_NAME: &str = "bench_basic";
     let mut rng = WyRand::new_seed(SEED);
-    let mut first = black_box(TestBench::generate_random(&mut rng));
+    let first = black_box(TestBench::generate_random(&mut rng));
     let second = black_box(TestBench::generate_random(&mut rng));
     let mut group = c.benchmark_group(GROUP_NAME);
     group
@@ -36,11 +37,31 @@ fn bench_basic(c: &mut Criterion) {
     group.bench_function(GROUP_NAME, |b| {
         b.iter(|| {
             let diff = black_box(StructDiff::diff(&first, &second));
-            black_box(first.apply_mut(diff));
-        })
+            black_box(diff);
+        })       
     });
     group.finish();
-    first.assert_eq(second);
+}
+
+fn bench_basic_full(c: &mut Criterion) {
+    const GROUP_NAME: &str = "bench_basic";
+    let mut rng = WyRand::new_seed(SEED);
+    let mut first = black_box(TestBench::generate_random(&mut rng));
+    
+    let second = black_box(TestBench::generate_random(&mut rng));
+    let mut diff: Vec<<TestBench as StructDiff>::Diff> = Vec::new();
+    let mut group = c.benchmark_group(GROUP_NAME);
+    group
+        .sample_size(SAMPLE_SIZE)
+        .measurement_time(MEASUREMENT_TIME);
+    group.bench_function(GROUP_NAME, |b| {
+        b.iter(|| {
+            diff = black_box(StructDiff::diff(&first, &second));
+            black_box(first.apply_mut(diff.clone()));
+        })       
+    });
+    group.finish();
+    first.assert_eq(second, &diff);
 }
 
 #[cfg(feature = "compare")]
