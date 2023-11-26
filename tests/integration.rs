@@ -20,6 +20,16 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "nanoserde")]
 use nanoserde::{DeBin, SerBin};
 
+macro_rules! nanoserde_ref_test {
+    ($first:ident, $second:ident) => {
+        #[cfg(feature = "nanoserde")]
+        assert_eq!(
+            nanoserde::SerBin::serialize_bin(&(&$first).diff(&$second)),
+            nanoserde::SerBin::serialize_bin(&(&$first).diff_ref(&$second))
+        )
+    };
+}
+
 #[test]
 /// This should match the code used in README.md
 fn test_example() {
@@ -75,9 +85,10 @@ fn test_derive() {
     };
 
     let diffs = first.diff(&second);
-    let diffed = first.apply(diffs);
+    let diffed = first.clone().apply(diffs);
 
-    assert_eq!(diffed, second);
+    assert_eq!(&diffed, &second);
+    nanoserde_ref_test!(first, second);
 }
 
 #[test]
@@ -121,13 +132,15 @@ fn test_derive_with_skip() {
         assert_eq!(diffed_serde.test4, second.test4);
     }
 
-    let diffed = first.apply(diffs);
+    let diffed = first.clone().apply(diffs);
 
     //check that all except the skipped are changed
     assert_eq!(diffed.test1, second.test1);
     assert_eq!(diffed.test2, second.test2);
     assert_ne!(diffed.test3skip, second.test3skip);
     assert_eq!(diffed.test4, second.test4);
+
+    nanoserde_ref_test!(first, second);
 }
 
 #[derive(Debug, PartialEq, Clone, Difference)]
@@ -177,13 +190,15 @@ fn test_generics() {
         assert_eq!(&diffed_serde, &second);
     }
 
-    let diffed = first.apply(diffs);
+    let diffed = first.clone().apply(diffs);
 
     //check that all except the skipped are changed
     assert_eq!(diffed.test1, second.test1);
     assert_eq!(diffed.test2, second.test2);
     assert_eq!(diffed.test3, second.test3);
     assert_eq!(diffed.test4, second.test4);
+
+    nanoserde_ref_test!(first, second)
 }
 
 #[derive(Debug, PartialEq, Clone, Difference)]
@@ -242,7 +257,7 @@ fn test_generics_skip() {
         assert_eq!(diffed_serde.test5, second.test5);
     }
 
-    let diffed = first.apply(diffs);
+    let diffed = first.clone().apply(diffs);
 
     //check that all except the skipped are changed
     assert_eq!(diffed.test1, second.test1);
@@ -250,6 +265,8 @@ fn test_generics_skip() {
     assert_eq!(diffed.test3, second.test3);
     assert_ne!(diffed.test4, second.test4);
     assert_eq!(diffed.test5, second.test5);
+
+    nanoserde_ref_test!(first, second);
 }
 
 #[test]
@@ -260,7 +277,8 @@ fn test_enums() {
         leader = TestEnum::next();
         let diff = follower.diff(&leader);
         follower.apply_mut(diff);
-        assert_eq!(leader, follower)
+        assert_eq!(&leader, &follower);
+        nanoserde_ref_test!(leader, follower);
     }
 }
 
@@ -287,9 +305,10 @@ mod derive_inner {
         };
 
         let diffs = first.diff(&second);
-        let diffed = first.apply(diffs);
+        let diffed = first.clone().apply(diffs);
 
         assert_eq!(diffed, second);
+        nanoserde_ref_test!(first, second);
     }
 }
 
@@ -377,9 +396,10 @@ fn test_recurse() {
         assert_eq!(&diffed_serde, &second);
     }
 
-    let diffed = first.apply(diffs);
+    let diffed = first.clone().apply(diffs);
 
     assert_eq!(diffed, second);
+    nanoserde_ref_test!(first, second);
 }
 
 #[test]
@@ -431,12 +451,14 @@ fn test_collection_strategies() {
         assert_eq_unordered!(&diffed_nserde.test3, &second.test3);
     }
 
-    let diffed = first.apply(diffs);
+    let diffed = first.clone().apply(diffs);
 
     use assert_unordered::assert_eq_unordered;
-    assert_eq_unordered!(diffed.test1, second.test1);
-    assert_eq_unordered!(diffed.test2, second.test2);
-    assert_eq_unordered!(diffed.test3, second.test3);
+    assert_eq_unordered!(&diffed.test1, &second.test1);
+    assert_eq_unordered!(&diffed.test2, &second.test2);
+    assert_eq_unordered!(&diffed.test3, &second.test3);
+
+    nanoserde_ref_test!(first, second);
 }
 
 #[test]
@@ -483,10 +505,12 @@ fn test_key_value() {
         assert_eq_unordered!(&diffed_serde.test1, &second.test1);
     }
 
-    let diffed = first.apply(diffs);
+    let diffed = first.clone().apply(diffs);
 
     use assert_unordered::assert_eq_unordered;
-    assert_eq_unordered!(diffed.test1, second.test1);
+    assert_eq_unordered!(&diffed.test1, &second.test1);
+
+    nanoserde_ref_test!(first, second);
 }
 
 #[cfg(feature = "generated_setters")]

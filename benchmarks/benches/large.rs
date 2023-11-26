@@ -15,7 +15,7 @@ const SEED: u64 = 42;
 #[cfg(feature = "compare")]
 criterion_group!(
     benches,
-    bench_large_generation
+    bench_large_generation,
     bench_large_full,
     diff_struct_bench::bench_large,
     serde_diff_bench::bench_large
@@ -36,7 +36,7 @@ fn bench_large_generation(c: &mut Criterion) {
         .measurement_time(MEASUREMENT_TIME);
     group.bench_function(GROUP_NAME, |b| {
         b.iter(|| {
-            let diff = black_box(StructDiff::diff(&first, &second));
+            let diff = black_box(StructDiff::diff_ref(&first, &second));
             black_box(diff);
         })
     });

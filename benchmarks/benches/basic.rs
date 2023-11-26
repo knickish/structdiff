@@ -36,7 +36,7 @@ fn bench_basic_generation(c: &mut Criterion) {
         .measurement_time(MEASUREMENT_TIME);
     group.bench_function(GROUP_NAME, |b| {
         b.iter(|| {
-            let diff = black_box(StructDiff::diff(&first, &second));
+            let diff = black_box(StructDiff::diff_ref(&first, &second));
             black_box(diff);
         })       
     });

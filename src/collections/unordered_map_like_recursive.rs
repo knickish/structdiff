@@ -5,14 +5,40 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "debug_diffs")]
 use std::fmt::Debug;
 
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap, hash::Hash, marker::PhantomData};
 
 use crate::StructDiff;
 
 #[cfg_attr(feature = "debug_diffs", derive(Debug))]
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub(crate) enum UnorderedMapLikeRecursiveChangeRef<'a, K: Clone, V: StructDiff + Clone> {
+    Insert((&'a K, &'a V)),
+    Remove(&'a K),
+    Change((&'a K, Vec<V::DiffRef<'a>>)),
+}
+
+#[cfg_attr(feature = "debug_diffs", derive(Debug))]
+#[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub(crate) enum UnorderedMapLikeRecursiveDiffInternalRef<'a, K: Clone, V: StructDiff + Clone> {
+    Replace(Vec<(&'a K, &'a V)>),
+    Modify(Vec<UnorderedMapLikeRecursiveChangeRef<'a, K, V>>),
+}
+
+/// Used internally by StructDiff to track recursive changes to a map-like collection
+#[repr(transparent)]
+#[derive(Clone)]
+#[cfg_attr(feature = "debug_diffs", derive(Debug))]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct UnorderedMapLikeRecursiveDiffRef<'a, K: Clone, V: StructDiff + Clone>(
+    UnorderedMapLikeRecursiveDiffInternalRef<'a, K, V>,
+);
+
+#[cfg_attr(feature = "debug_diffs", derive(Debug))]
+#[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub(crate) enum UnorderedMapLikeRecursiveChange<K, V: StructDiff> {
+pub(crate) enum UnorderedMapLikeRecursiveChangeOwned<K: Clone, V: StructDiff> {
     Insert((K, V)),
     Remove(K),
     Change((K, Vec<V::Diff>)),
@@ -21,18 +47,60 @@ pub(crate) enum UnorderedMapLikeRecursiveChange<K, V: StructDiff> {
 #[cfg_attr(feature = "debug_diffs", derive(Debug))]
 #[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub(crate) enum UnorderedMapLikeRecursiveDiffInternal<K, V: StructDiff> {
+pub(crate) enum UnorderedMapLikeRecursiveDiffInternalOwned<K: Clone, V: StructDiff> {
     Replace(Vec<(K, V)>),
-    Modify(Vec<UnorderedMapLikeRecursiveChange<K, V>>),
+    Modify(Vec<UnorderedMapLikeRecursiveChangeOwned<K, V>>),
 }
 
+/// Used internally by StructDiff to track recursive changes to a map-like collection
 #[repr(transparent)]
 #[derive(Clone)]
 #[cfg_attr(feature = "debug_diffs", derive(Debug))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct UnorderedMapLikeRecursiveDiff<K, V: StructDiff>(
-    UnorderedMapLikeRecursiveDiffInternal<K, V>,
+pub struct UnorderedMapLikeRecursiveDiffOwned<K: Clone, V: StructDiff + Clone>(
+    UnorderedMapLikeRecursiveDiffInternalOwned<K, V>,
 );
+
+impl<'a, K: Clone, V: StructDiff + Clone> From<UnorderedMapLikeRecursiveDiffRef<'a, K, V>>
+    for UnorderedMapLikeRecursiveDiffOwned<K, V>
+{
+    fn from(value: UnorderedMapLikeRecursiveDiffRef<'a, K, V>) -> Self {
+        let new_inner: UnorderedMapLikeRecursiveDiffInternalOwned<K, V> = match value.0 {
+            UnorderedMapLikeRecursiveDiffInternalRef::Replace(vals) => {
+                UnorderedMapLikeRecursiveDiffInternalOwned::Replace(
+                    vals.into_iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect(),
+                )
+            }
+            UnorderedMapLikeRecursiveDiffInternalRef::Modify(vals) => {
+                let vals = vals
+                    .into_iter()
+                    .map(|change| match change {
+                        UnorderedMapLikeRecursiveChangeRef::Insert((k, v)) => {
+                            UnorderedMapLikeRecursiveChangeOwned::Insert((k.clone(), v.clone()))
+                        }
+                        UnorderedMapLikeRecursiveChangeRef::Remove(k) => {
+                            UnorderedMapLikeRecursiveChangeOwned::Remove(k.clone())
+                        }
+                        UnorderedMapLikeRecursiveChangeRef::Change((k, diffs)) => {
+                            let diffs = diffs
+                                .into_iter()
+                                .map(|x| {
+                                    let ret: V::Diff = x.into();
+                                    ret
+                                })
+                                .collect();
+                            UnorderedMapLikeRecursiveChangeOwned::Change((k.clone(), diffs))
+                        }
+                    })
+                    .collect::<Vec<UnorderedMapLikeRecursiveChangeOwned<K, V>>>();
+                UnorderedMapLikeRecursiveDiffInternalOwned::Modify(vals)
+            }
+        };
+        UnorderedMapLikeRecursiveDiffOwned(new_inner)
+    }
+}
 
 fn collect_into_key_eq_map<
     'a,
@@ -49,21 +117,26 @@ fn collect_into_key_eq_map<
     map
 }
 
-enum Operation<V: StructDiff> {
+enum Operation<V, VDIFF>
+where
+    V: StructDiff,
+    VDIFF: Into<V::Diff> + Clone,
+{
     Insert,
     Remove,
-    Change(Vec<V::Diff>),
+    Change(Vec<VDIFF>, PhantomData<V>),
 }
 
-impl<K: Clone, V: StructDiff + Clone> UnorderedMapLikeRecursiveChange<K, V> {
-    fn new<'b>(item: (&'b K, &'b V), insert_or_remove: Operation<V>) -> Self {
+impl<'a, K: Clone, V: StructDiff + Clone> UnorderedMapLikeRecursiveChangeRef<'a, K, V> {
+    fn new(item: (&'a K, &'a V), insert_or_remove: Operation<V, V::DiffRef<'a>>) -> Self
+    where
+        Self: 'a,
+    {
         match insert_or_remove {
-            Operation::Insert => {
-                UnorderedMapLikeRecursiveChange::Insert((item.0.clone(), item.1.clone()))
-            }
-            Operation::Remove => UnorderedMapLikeRecursiveChange::Remove(item.0.clone()),
-            Operation::Change(diff) => {
-                UnorderedMapLikeRecursiveChange::Change((item.0.clone(), diff))
+            Operation::Insert => UnorderedMapLikeRecursiveChangeRef::Insert((item.0, item.1)),
+            Operation::Remove => UnorderedMapLikeRecursiveChangeRef::Remove(item.0),
+            Operation::Change(diff, ..) => {
+                UnorderedMapLikeRecursiveChangeRef::Change((item.0, diff))
             }
         }
     }
@@ -79,7 +152,7 @@ pub fn unordered_hashcmp<
     previous: B,
     current: B,
     key_only: bool,
-) -> Option<UnorderedMapLikeRecursiveDiff<K, V>> {
+) -> Option<UnorderedMapLikeRecursiveDiffRef<'a, K, V>> {
     let (previous, mut current) = (
         collect_into_key_eq_map(previous),
         collect_into_key_eq_map(current),
@@ -90,21 +163,18 @@ pub fn unordered_hashcmp<
 
     if key_only {
         if (current.len() as isize) < ((previous.len() as isize) - (current.len() as isize)) {
-            return Some(UnorderedMapLikeRecursiveDiff(
-                UnorderedMapLikeRecursiveDiffInternal::Replace(
-                    current
-                        .into_iter()
-                        .map(|(k, v)| (k.clone(), v.clone()))
-                        .collect::<Vec<(K, V)>>(),
+            return Some(UnorderedMapLikeRecursiveDiffRef(
+                UnorderedMapLikeRecursiveDiffInternalRef::Replace(
+                    current.into_iter().collect::<Vec<(&'a K, &'a V)>>(),
                 ),
             ));
         }
 
-        let mut ret: Vec<UnorderedMapLikeRecursiveChange<K, V>> = vec![];
+        let mut ret: Vec<UnorderedMapLikeRecursiveChangeRef<'a, K, V>> = vec![];
 
         for prev_entry in previous.into_iter() {
             if current.remove_entry(prev_entry.0).is_none() {
-                ret.push(UnorderedMapLikeRecursiveChange::new(
+                ret.push(UnorderedMapLikeRecursiveChangeRef::new(
                     prev_entry,
                     Operation::Remove,
                 ));
@@ -112,7 +182,7 @@ pub fn unordered_hashcmp<
         }
 
         for add_entry in current.into_iter() {
-            ret.push(UnorderedMapLikeRecursiveChange::new(
+            ret.push(UnorderedMapLikeRecursiveChangeRef::new(
                 add_entry,
                 Operation::Insert,
             ))
@@ -120,34 +190,31 @@ pub fn unordered_hashcmp<
 
         match ret.is_empty() {
             true => None,
-            false => Some(UnorderedMapLikeRecursiveDiff(
-                UnorderedMapLikeRecursiveDiffInternal::Modify(ret),
+            false => Some(UnorderedMapLikeRecursiveDiffRef(
+                UnorderedMapLikeRecursiveDiffInternalRef::Modify(ret),
             )),
         }
     } else {
         if (current.len() as isize) < ((previous.len() as isize) - (current.len() as isize)) {
-            return Some(UnorderedMapLikeRecursiveDiff(
-                UnorderedMapLikeRecursiveDiffInternal::Replace(
-                    current
-                        .into_iter()
-                        .map(|(k, v)| (k.clone(), v.clone()))
-                        .collect::<Vec<(K, V)>>(),
+            return Some(UnorderedMapLikeRecursiveDiffRef(
+                UnorderedMapLikeRecursiveDiffInternalRef::Replace(
+                    current.into_iter().collect::<Vec<(&'a K, &'a V)>>(),
                 ),
             ));
         }
 
-        let mut ret: Vec<UnorderedMapLikeRecursiveChange<K, V>> = vec![];
+        let mut ret: Vec<UnorderedMapLikeRecursiveChangeRef<'a, K, V>> = vec![];
 
         for prev_entry in previous.into_iter() {
             match current.remove_entry(prev_entry.0) {
-                None => ret.push(UnorderedMapLikeRecursiveChange::new(
+                None => ret.push(UnorderedMapLikeRecursiveChangeRef::new(
                     prev_entry,
                     Operation::Remove,
                 )),
                 Some(current_entry) if prev_entry.1 != current_entry.1 => {
-                    ret.push(UnorderedMapLikeRecursiveChange::new(
+                    ret.push(UnorderedMapLikeRecursiveChangeRef::new(
                         current_entry,
-                        Operation::Change(prev_entry.1.diff(current_entry.1)),
+                        Operation::Change(prev_entry.1.diff_ref(current_entry.1), PhantomData),
                     ))
                 }
                 _ => (), // no change
@@ -155,7 +222,7 @@ pub fn unordered_hashcmp<
         }
 
         for add_entry in current.into_iter() {
-            ret.push(UnorderedMapLikeRecursiveChange::new(
+            ret.push(UnorderedMapLikeRecursiveChangeRef::new(
                 add_entry,
                 Operation::Insert,
             ))
@@ -163,8 +230,8 @@ pub fn unordered_hashcmp<
 
         match ret.is_empty() {
             true => None,
-            false => Some(UnorderedMapLikeRecursiveDiff(
-                UnorderedMapLikeRecursiveDiffInternal::Modify(ret),
+            false => Some(UnorderedMapLikeRecursiveDiffRef(
+                UnorderedMapLikeRecursiveDiffInternalRef::Modify(ret),
             )),
         }
     }
@@ -177,37 +244,37 @@ pub fn apply_unordered_hashdiffs<
     B: IntoIterator<Item = (K, V)>,
 >(
     list: B,
-    diffs: UnorderedMapLikeRecursiveDiff<K, V>,
+    diffs: UnorderedMapLikeRecursiveDiffOwned<K, V>,
 ) -> Box<dyn Iterator<Item = (K, V)>> {
     let diffs = match diffs {
-        UnorderedMapLikeRecursiveDiff(UnorderedMapLikeRecursiveDiffInternal::Replace(
-            replacement,
-        )) => {
+        UnorderedMapLikeRecursiveDiffOwned(
+            UnorderedMapLikeRecursiveDiffInternalOwned::Replace(replacement),
+        ) => {
             return Box::new(replacement.into_iter());
         }
-        UnorderedMapLikeRecursiveDiff(UnorderedMapLikeRecursiveDiffInternal::Modify(diffs)) => {
-            diffs
-        }
+        UnorderedMapLikeRecursiveDiffOwned(UnorderedMapLikeRecursiveDiffInternalOwned::Modify(
+            diffs,
+        )) => diffs,
     };
 
     let (insertions, rem): (Vec<_>, Vec<_>) = diffs
         .into_iter()
-        .partition(|x| matches!(&x, UnorderedMapLikeRecursiveChange::Insert(_)));
+        .partition(|x| matches!(&x, UnorderedMapLikeRecursiveChangeOwned::Insert(_)));
     let (removals, changes): (Vec<_>, Vec<_>) = rem
         .into_iter()
-        .partition(|x| matches!(&x, UnorderedMapLikeRecursiveChange::Remove(_)));
+        .partition(|x| matches!(&x, UnorderedMapLikeRecursiveChangeOwned::Remove(_)));
 
     let mut list_hash = HashMap::<K, V>::from_iter(list);
 
     for remove in removals {
-        let UnorderedMapLikeRecursiveChange::Remove(key) = remove else {
+        let UnorderedMapLikeRecursiveChangeOwned::Remove(key) = remove else {
             continue;
         };
         list_hash.remove(&key);
     }
 
     for change in changes {
-        let UnorderedMapLikeRecursiveChange::Change((key, diff)) = change else {
+        let UnorderedMapLikeRecursiveChangeOwned::Change((key, diff)) = change else {
             continue;
         };
         let Some(to_change) = list_hash.get_mut(&key) else {
@@ -217,7 +284,7 @@ pub fn apply_unordered_hashdiffs<
     }
 
     for insert in insertions {
-        let UnorderedMapLikeRecursiveChange::Insert((key, value)) = insert else {
+        let UnorderedMapLikeRecursiveChangeOwned::Insert((key, value)) = insert else {
             continue;
         };
         list_hash.insert(key, value);
@@ -231,11 +298,12 @@ mod nanoserde_impls {
     use crate::StructDiff;
 
     use super::{
-        DeBin, SerBin, UnorderedMapLikeRecursiveChange, UnorderedMapLikeRecursiveDiff,
-        UnorderedMapLikeRecursiveDiffInternal,
+        DeBin, SerBin, UnorderedMapLikeRecursiveChangeOwned, UnorderedMapLikeRecursiveChangeRef,
+        UnorderedMapLikeRecursiveDiffInternalOwned, UnorderedMapLikeRecursiveDiffInternalRef,
+        UnorderedMapLikeRecursiveDiffOwned, UnorderedMapLikeRecursiveDiffRef,
     };
 
-    impl<K, V> SerBin for UnorderedMapLikeRecursiveChange<K, V>
+    impl<K, V> SerBin for UnorderedMapLikeRecursiveChangeOwned<K, V>
     where
         K: SerBin + PartialEq + Clone + DeBin,
         V: SerBin + PartialEq + Clone + DeBin + StructDiff,
@@ -258,18 +326,43 @@ mod nanoserde_impls {
         }
     }
 
-    impl<K, V> SerBin for UnorderedMapLikeRecursiveDiff<K, V>
+    impl<K, V> SerBin for UnorderedMapLikeRecursiveChangeRef<'_, K, V>
+    where
+        K: SerBin + PartialEq + Clone + DeBin,
+        V: SerBin + PartialEq + Clone + DeBin + StructDiff,
+    {
+        fn ser_bin(&self, output: &mut Vec<u8>) {
+            match self {
+                Self::Insert(val) => {
+                    0_u8.ser_bin(output);
+                    val.0.ser_bin(output);
+                    val.1.ser_bin(output);
+                }
+                Self::Remove(val) => {
+                    1_u8.ser_bin(output);
+                    val.ser_bin(output);
+                }
+                Self::Change(val) => {
+                    2_u8.ser_bin(output);
+                    val.0.ser_bin(output);
+                    val.1.ser_bin(output);
+                }
+            }
+        }
+    }
+
+    impl<K, V> SerBin for UnorderedMapLikeRecursiveDiffOwned<K, V>
     where
         K: SerBin + PartialEq + Clone + DeBin,
         V: SerBin + PartialEq + Clone + DeBin + StructDiff,
     {
         fn ser_bin(&self, output: &mut Vec<u8>) {
             match &self.0 {
-                UnorderedMapLikeRecursiveDiffInternal::Replace(val) => {
+                UnorderedMapLikeRecursiveDiffInternalOwned::Replace(val) => {
                     0_u8.ser_bin(output);
                     val.ser_bin(output);
                 }
-                UnorderedMapLikeRecursiveDiffInternal::Modify(val) => {
+                UnorderedMapLikeRecursiveDiffInternalOwned::Modify(val) => {
                     1_u8.ser_bin(output);
                     val.ser_bin(output);
                 }
@@ -277,7 +370,41 @@ mod nanoserde_impls {
         }
     }
 
-    impl<K, V> DeBin for UnorderedMapLikeRecursiveChange<K, V>
+    impl<K, V> SerBin for UnorderedMapLikeRecursiveDiffRef<'_, K, V>
+    where
+        K: SerBin + PartialEq + Clone + DeBin,
+        V: SerBin + PartialEq + Clone + DeBin + StructDiff,
+    {
+        fn ser_bin(&self, output: &mut Vec<u8>) {
+            match &self.0 {
+                UnorderedMapLikeRecursiveDiffInternalRef::Replace(val) => {
+                    0_u8.ser_bin(output);
+                    val.len().ser_bin(output);
+                    for (key, value) in val {
+                        key.ser_bin(output);
+                        value.ser_bin(output)
+                    }
+                }
+                UnorderedMapLikeRecursiveDiffInternalRef::Modify(val) => {
+                    1_u8.ser_bin(output);
+                    val.ser_bin(output);
+                }
+            }
+        }
+    }
+
+    impl<K, V> SerBin for &UnorderedMapLikeRecursiveDiffRef<'_, K, V>
+    where
+        K: SerBin + PartialEq + Clone + DeBin,
+        V: SerBin + PartialEq + Clone + DeBin + StructDiff,
+    {
+        #[inline(always)]
+        fn ser_bin(&self, output: &mut Vec<u8>) {
+            (*self).ser_bin(output)
+        }
+    }
+
+    impl<K, V> DeBin for UnorderedMapLikeRecursiveChangeOwned<K, V>
     where
         K: SerBin + PartialEq + Clone + DeBin,
         V: SerBin + PartialEq + Clone + DeBin + StructDiff,
@@ -285,12 +412,12 @@ mod nanoserde_impls {
         fn de_bin(
             offset: &mut usize,
             bytes: &[u8],
-        ) -> Result<UnorderedMapLikeRecursiveChange<K, V>, nanoserde::DeBinErr> {
+        ) -> Result<UnorderedMapLikeRecursiveChangeOwned<K, V>, nanoserde::DeBinErr> {
             let id: u8 = DeBin::de_bin(offset, bytes)?;
             core::result::Result::Ok(match id {
-                0_u8 => UnorderedMapLikeRecursiveChange::Insert(DeBin::de_bin(offset, bytes)?),
-                1_u8 => UnorderedMapLikeRecursiveChange::Remove(DeBin::de_bin(offset, bytes)?),
-                2_u8 => UnorderedMapLikeRecursiveChange::Change(DeBin::de_bin(offset, bytes)?),
+                0_u8 => UnorderedMapLikeRecursiveChangeOwned::Insert(DeBin::de_bin(offset, bytes)?),
+                1_u8 => UnorderedMapLikeRecursiveChangeOwned::Remove(DeBin::de_bin(offset, bytes)?),
+                2_u8 => UnorderedMapLikeRecursiveChangeOwned::Change(DeBin::de_bin(offset, bytes)?),
                 _ => {
                     return core::result::Result::Err(nanoserde::DeBinErr {
                         o: *offset,
@@ -302,7 +429,7 @@ mod nanoserde_impls {
         }
     }
 
-    impl<K, V> DeBin for UnorderedMapLikeRecursiveDiff<K, V>
+    impl<K, V> DeBin for UnorderedMapLikeRecursiveDiffOwned<K, V>
     where
         K: SerBin + PartialEq + Clone + DeBin,
         V: SerBin + PartialEq + Clone + DeBin + StructDiff,
@@ -310,14 +437,18 @@ mod nanoserde_impls {
         fn de_bin(
             offset: &mut usize,
             bytes: &[u8],
-        ) -> Result<UnorderedMapLikeRecursiveDiff<K, V>, nanoserde::DeBinErr> {
+        ) -> Result<UnorderedMapLikeRecursiveDiffOwned<K, V>, nanoserde::DeBinErr> {
             let id: u8 = DeBin::de_bin(offset, bytes)?;
             core::result::Result::Ok(match id {
-                0_u8 => UnorderedMapLikeRecursiveDiff(
-                    UnorderedMapLikeRecursiveDiffInternal::Replace(DeBin::de_bin(offset, bytes)?),
+                0_u8 => UnorderedMapLikeRecursiveDiffOwned(
+                    UnorderedMapLikeRecursiveDiffInternalOwned::Replace(DeBin::de_bin(
+                        offset, bytes,
+                    )?),
                 ),
-                1_u8 => UnorderedMapLikeRecursiveDiff(
-                    UnorderedMapLikeRecursiveDiffInternal::Modify(DeBin::de_bin(offset, bytes)?),
+                1_u8 => UnorderedMapLikeRecursiveDiffOwned(
+                    UnorderedMapLikeRecursiveDiffInternalOwned::Modify(DeBin::de_bin(
+                        offset, bytes,
+                    )?),
                 ),
                 _ => {
                     return core::result::Result::Err(nanoserde::DeBinErr {
@@ -408,12 +539,13 @@ mod test {
             ]
             .into_iter()
             .collect(),
-            test2: vec![(10, 0), (15, 2), (20, 0), (25, 0), (10, 0)]
+            test2: vec![(10, 0), (15, 2), (20, 0), (25, 0)]
                 .into_iter()
                 .collect(),
         };
 
         let diffs = first.diff(&second);
+        assert_eq!(diffs.len(), 2);
         let diffed = first.apply(diffs);
 
         use assert_unordered::assert_eq_unordered;
