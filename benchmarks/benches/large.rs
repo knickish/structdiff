@@ -15,16 +15,35 @@ const SEED: u64 = 42;
 #[cfg(feature = "compare")]
 criterion_group!(
     benches,
-    bench_large,
+    bench_large_generation,
+    bench_large_full,
     diff_struct_bench::bench_large,
     serde_diff_bench::bench_large
 );
 #[cfg(not(feature = "compare"))]
-criterion_group!(benches, bench_large);
+criterion_group!(benches, bench_large_generation, bench_large_full);
 
 criterion_main!(benches);
 
-fn bench_large(c: &mut Criterion) {
+fn bench_large_generation(c: &mut Criterion) {
+    const GROUP_NAME: &str = "bench_large";
+    let mut rng = WyRand::new_seed(SEED);
+    let first = black_box(TestBench::generate_random_large(&mut rng));
+    let second = black_box(TestBench::generate_random_large(&mut rng));
+    let mut group = c.benchmark_group(GROUP_NAME);
+    group
+        .sample_size(SAMPLE_SIZE)
+        .measurement_time(MEASUREMENT_TIME);
+    group.bench_function(GROUP_NAME, |b| {
+        b.iter(|| {
+            let diff = black_box(StructDiff::diff_ref(&first, &second));
+            black_box(diff);
+        })
+    });
+    group.finish();
+}
+
+fn bench_large_full(c: &mut Criterion) {
     const GROUP_NAME: &str = "bench_large";
     let mut rng = WyRand::new_seed(SEED);
     let mut first = black_box(TestBench::generate_random_large(&mut rng));

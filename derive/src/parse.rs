@@ -202,24 +202,28 @@ impl Generic {
 
     pub fn ident_with_const(&self) -> String {
         match &self {
-            Generic::ConstGeneric { .. } => self.full_with_const(&[], true),
+            Generic::ConstGeneric { .. } => self.full_with_const(&[], &[], true),
             _ => format!("{}{}", self.lifetime_prefix(), self.full()),
         }
     }
 
-    pub fn full_with_const(&self, extra_bounds: &[&str], bounds: bool) -> String {
+    pub fn full_with_const(
+        &self,
+        extra_ty_bounds: &[&str],
+        extra_lifetime_bounds: &[&str],
+        bounds: bool,
+    ) -> String {
         let bounds = match (bounds, &self) {
-            (true, Generic::Lifetime { .. }) => self.get_bounds().join(" + "),
+            (true, Generic::Lifetime { .. }) => {
+                let mut bounds = self.get_bounds();
+                bounds.extend(extra_lifetime_bounds.into_iter().map(ToString::to_string));
+                bounds.join(" + ")
+            }
             (true, _) => {
-                let mut bounds = self.get_bounds().join(" + ");
-                if !extra_bounds.is_empty() {
-                    if bounds.is_empty() {
-                        bounds = extra_bounds.join(" + ")
-                    } else {
-                        bounds = format!("{} + {}", bounds, extra_bounds.join(" + "));
-                    }
-                }
-                bounds
+                let mut bounds = self.get_bounds();
+                bounds.extend(extra_ty_bounds.into_iter().map(ToString::to_string));
+                bounds.extend(extra_lifetime_bounds.into_iter().map(ToString::to_string));
+                bounds.join(" + ")
             }
             (_, Generic::ConstGeneric { .. }) => self.get_bounds().join(" + "),
             (false, _) => String::new(),
@@ -241,7 +245,7 @@ impl Generic {
         }
     }
 
-    #[allow(unused)]
+    #[cfg(unused)]
     pub fn full_with_const_and_default(&self, extra_bounds: &[&str], bounds: bool) -> String {
         let bounds = match (bounds, &self) {
             (true, Generic::Lifetime { .. }) => String::new(),
@@ -277,6 +281,17 @@ impl Generic {
         }
     }
 
+    pub fn has_where_bounds(&self, lifetimes_bound: bool, extra_ty_bounds: bool) -> bool {
+        match &self {
+            Generic::Generic { bounds, .. } => {
+                !bounds.is_empty() || lifetimes_bound || extra_ty_bounds
+            }
+            Generic::Lifetime { bounds, .. } => !bounds.is_empty() || lifetimes_bound,
+            Generic::WhereBounded { .. } => true,
+            _ => false,
+        }
+    }
+
     fn get_bounds(&self) -> Vec<String> {
         match &self {
             Generic::ConstGeneric { _type, .. } => vec![format!("{}", _type.full())],
@@ -288,6 +303,7 @@ impl Generic {
         }
     }
 
+    #[cfg(unused)]
     fn get_default(&self) -> String {
         match &self {
             Generic::ConstGeneric {
@@ -572,8 +588,12 @@ pub fn _debug_current_token(source: &mut Peekable<impl Iterator<Item = TokenTree
 }
 
 pub fn next_lifetime<T: Iterator<Item = TokenTree>>(source: &mut Peekable<T>) -> Option<Lifetime> {
-    let Some (TokenTree::Punct(punct)) = source.peek() else { return None; };
-    let '\'' = punct.as_char() else { return None; };
+    let Some(TokenTree::Punct(punct)) = source.peek() else {
+        return None;
+    };
+    let '\'' = punct.as_char() else {
+        return None;
+    };
 
     let _ = source.next();
     Some(Lifetime {
@@ -613,7 +633,15 @@ fn next_type<T: Iterator<Item = TokenTree> + Clone>(mut source: &mut Peekable<T>
 
         let Some(_) = next_exact_punct(&mut source, ";") else {
             // This is an unbounded array, legal at end for unsized types
-            return Some(Type { ident: Category::Array { content_type: Box::new(next.clone()), len: None }, wraps: Some(vec![next]), ref_type: None, as_other: None })
+            return Some(Type {
+                ident: Category::Array {
+                    content_type: Box::new(next.clone()),
+                    len: None,
+                },
+                wraps: Some(vec![next]),
+                ref_type: None,
+                as_other: None,
+            });
         };
 
         //need to cover both the const generic and literal case
@@ -683,7 +711,10 @@ fn next_type<T: Iterator<Item = TokenTree> + Clone>(mut source: &mut Peekable<T>
             source: &mut Peekable<T>,
         ) -> Option<Type> {
             let mut tmp = source.clone();
-            let (Some(_), Some(_)) = ( next_exact_punct(&mut tmp, "-"),  next_exact_punct(&mut tmp, ">")) else {
+            let (Some(_), Some(_)) = (
+                next_exact_punct(&mut tmp, "-"),
+                next_exact_punct(&mut tmp, ">"),
+            ) else {
                 return None;
             };
             drop(tmp);
@@ -740,7 +771,7 @@ fn next_type<T: Iterator<Item = TokenTree> + Clone>(mut source: &mut Peekable<T>
         };
         let true = matches!(ident.to_string().as_str(), "fn" | "FnOnce" | "FnMut" | "Fn") else {
             return None;
-       };
+        };
         let tok_str = source.next().unwrap().to_string();
 
         match tok_str.as_str() {
@@ -791,10 +822,10 @@ fn next_type<T: Iterator<Item = TokenTree> + Clone>(mut source: &mut Peekable<T>
         source: &mut Peekable<T>,
     ) -> Option<Type> {
         let Some(TokenTree::Ident(ident)) = source.peek() else {
-            return None
+            return None;
         };
         let true = matches!(ident.to_string().as_str(), "impl" | "dyn") else {
-             return None;
+            return None;
         };
         match source.next().unwrap().to_string().as_str() {
             "impl" => {
@@ -862,7 +893,14 @@ fn next_type<T: Iterator<Item = TokenTree> + Clone>(mut source: &mut Peekable<T>
     };
 
     let None = next_exact_punct(source, "\'") else {
-        return Some(Type{ ident: Category::Lifetime { path: next_ident(source).expect("Need lifetime name") }, wraps: None, ref_type: None, as_other: None })
+        return Some(Type {
+            ident: Category::Lifetime {
+                path: next_ident(source).expect("Need lifetime name"),
+            },
+            wraps: None,
+            ref_type: None,
+            as_other: None,
+        });
     };
 
     let ref_type = match next_exact_punct(&mut source, "&") {
@@ -930,7 +968,10 @@ fn next_type<T: Iterator<Item = TokenTree> + Clone>(mut source: &mut Peekable<T>
     let mut ty = next_ident(&mut source).unwrap_or_default();
     while let Some(TokenTree::Punct(_)) = source.peek() {
         let mut tmp = source.clone();
-        let (Some(_), Some(_)) = ( next_exact_punct(&mut tmp, ":"),  next_exact_punct(&mut tmp, ":")) else {
+        let (Some(_), Some(_)) = (
+            next_exact_punct(&mut tmp, ":"),
+            next_exact_punct(&mut tmp, ":"),
+        ) else {
             break;
         };
         drop(tmp);
@@ -1036,7 +1077,7 @@ fn next_attribute<T: Iterator<Item = TokenTree>>(
     // all attributes, even doc-comments, starts with "#"
     let next_attr_punct = next_punct(&mut source);
     let Some("#") = next_attr_punct.as_deref() else {
-        return None
+        return None;
     };
 
     let mut attr_group = next_group(&mut source)
@@ -1234,7 +1275,12 @@ fn next_enum<T: Iterator<Item = TokenTree> + Clone>(mut source: &mut Peekable<T>
         let ty = next_type(&mut body);
         let Some(ty) = ty else {
             variants.push(Field {
-                ty: Type { ident: Category::None, wraps: None, ref_type: None, as_other: None },
+                ty: Type {
+                    ident: Category::None,
+                    wraps: None,
+                    ref_type: None,
+                    as_other: None,
+                },
                 attributes,
                 vis: Visibility::Public,
                 field_name: Some(variant_name),

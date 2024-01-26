@@ -87,16 +87,19 @@ impl TestBench {
         }
     }
 
-    pub fn assert_eq(self, right: TestBench) {
-        assert_eq!(self.a, right.a);
-        assert_eq!(self.b, right.b);
-        assert_eq_unordered_sort!(self.c, right.c);
-        assert_eq_unordered_sort!(self.d, right.d);
+    #[track_caller]
+    pub fn assert_eq(self, right: TestBench, diff: &Vec<<TestBench as StructDiff>::Diff>) {
+        assert_eq!(self.a, right.a, "{:?}", diff);
+        assert_eq!(self.b, right.b, "{:?}", diff);
+        assert_eq_unordered_sort!(self.c, right.c, "{:?}", diff);
+        assert_eq_unordered_sort!(self.d, right.d, "{:?}", diff);
         assert_eq_unordered_sort!(
             self.e.iter().map(|x| x.0).collect::<Vec<_>>(),
-            right.e.iter().map(|x| x.0).collect::<Vec<_>>()
+            right.e.iter().map(|x| x.0).collect::<Vec<_>>(), 
+            "{:?}", 
+            diff
         );
-        assert_eq_unordered_sort!(self.f, right.f);
+        assert_eq_unordered_sort!(self.f, right.f, "{:?}", diff);
     }
 }
 
