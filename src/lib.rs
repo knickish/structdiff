@@ -126,7 +126,7 @@ pub trait StructDiff {
 
     /// Generate a diff between two instances of a struct, for
     /// use in passing to serializer. Much more efficient for
-    /// struct with large fields where the diff will not be stored.
+    /// structs with large fields where the diff will not be stored.
     ///
     /// ```
     /// use structdiff::{Difference, StructDiff};
