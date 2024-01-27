@@ -1,6 +1,6 @@
 [package]
 name = "structdiff"
-version = "0.6.0"
+version = "0.6.1"
 edition = "2021"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/knickish/structdiff"
@@ -11,10 +11,10 @@ categories    = ["compression"]
 [dependencies]
 nanoserde           = { version = "^0.1.37", optional = true }
 serde               = { version = "^1.0.0", optional = true, features = ["derive"] }
-structdiff-derive   = { path = "derive", version = "=0.6.0" }
+structdiff-derive   = { path = "derive", version = "=0.6.1" }
 
 [features]
-"default"       = ["nanoserde"]
+"default"       = []
 "nanoserde"     = ["dep:nanoserde", "structdiff-derive/nanoserde"]
 "serde"         = ["dep:serde", "structdiff-derive/serde"]
 "debug_diffs"   = ["structdiff-derive/debug_diffs"]
