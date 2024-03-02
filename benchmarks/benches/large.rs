@@ -26,7 +26,7 @@ criterion_group!(benches, bench_large_generation, bench_large_full);
 criterion_main!(benches);
 
 fn bench_large_generation(c: &mut Criterion) {
-    const GROUP_NAME: &str = "bench_large";
+    const GROUP_NAME: &str = "bench_large_ref_gen";
     let mut rng = WyRand::new_seed(SEED);
     let first = black_box(TestBench::generate_random_large(&mut rng));
     let second = black_box(TestBench::generate_random_large(&mut rng));
@@ -44,7 +44,7 @@ fn bench_large_generation(c: &mut Criterion) {
 }
 
 fn bench_large_full(c: &mut Criterion) {
-    const GROUP_NAME: &str = "bench_large";
+    const GROUP_NAME: &str = "bench_large_owned";
     let mut rng = WyRand::new_seed(SEED);
     let mut first = black_box(TestBench::generate_random_large(&mut rng));
     let second = black_box(TestBench::generate_random_large(&mut rng));
