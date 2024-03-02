@@ -2,7 +2,13 @@
 use nanoserde::{DeBin, SerBin};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, hash::Hash};
+#[cfg(not(feature = "rustc_hash"))]
+type HashMap<K, V> = std::collections::HashMap<K, V>;
+#[cfg(feature = "rustc_hash")]
+type HashMap<K, V> =
+    std::collections::HashMap<K, V, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>;
+
+use std::hash::Hash;
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -111,8 +117,8 @@ fn collect_into_key_eq_map<
 >(
     list: B,
 ) -> HashMap<&'a K, (&'a V, usize)> {
-    let mut map: HashMap<&K, (&V, usize)> =
-        HashMap::with_capacity(list.size_hint().1.unwrap_or_default());
+    let mut map: HashMap<&K, (&V, usize)> = HashMap::default();
+    map.reserve(list.size_hint().1.unwrap_or_default());
     for (key, value) in list {
         match map.get_mut(&key) {
             Some((_, count)) => *count += 1,
@@ -132,7 +138,9 @@ fn collect_into_key_value_eq_map<
 >(
     list: B,
 ) -> HashMap<&'a K, (&'a V, usize)> {
-    let mut map: HashMap<&K, (&V, usize)> = HashMap::new();
+    let mut map: HashMap<&K, (&V, usize)> = HashMap::default();
+    map.reserve(list.size_hint().1.unwrap_or_default());
+
     for (key, value) in list {
         match map.get_mut(&key) {
             Some((ref current_val, count)) => match current_val == &value {

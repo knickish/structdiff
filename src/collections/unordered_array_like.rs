@@ -2,7 +2,13 @@
 use nanoserde::{DeBin, SerBin};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, hash::Hash};
+#[cfg(not(feature = "rustc_hash"))]
+type HashMap<K, V> = std::collections::HashMap<K, V>;
+#[cfg(feature = "rustc_hash")]
+type HashMap<K, V> =
+    std::collections::HashMap<K, V, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>;
+
+use std::hash::Hash;
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -88,7 +94,9 @@ impl<'a, T: Clone + 'a> From<UnorderedArrayLikeDiff<&'a T>> for UnorderedArrayLi
 fn collect_into_map<'a, T: Hash + PartialEq + Eq + 'a, B: Iterator<Item = T>>(
     list: B,
 ) -> HashMap<T, usize> {
-    let mut map: HashMap<T, usize> = HashMap::with_capacity(list.size_hint().1.unwrap_or_default());
+    let mut map: HashMap<T, usize> = HashMap::default();
+    map.reserve(list.size_hint().1.unwrap_or_default());
+
     for item in list {
         match map.get_mut(&item) {
             Some(count) => *count += 1,
