@@ -85,14 +85,10 @@ impl<'a, T: Clone + 'a> From<UnorderedArrayLikeDiff<&'a T>> for UnorderedArrayLi
     }
 }
 
-fn collect_into_map<
-    'a,
-    T: Hash + PartialEq + Eq + 'a,
-    B: Iterator<Item = T> + ExactSizeIterator,
->(
+fn collect_into_map<'a, T: Hash + PartialEq + Eq + 'a, B: Iterator<Item = T>>(
     list: B,
 ) -> HashMap<T, usize> {
-    let mut map: HashMap<T, usize> = HashMap::with_capacity(list.len());
+    let mut map: HashMap<T, usize> = HashMap::with_capacity(list.size_hint().1.unwrap_or_default());
     for item in list {
         match map.get_mut(&item) {
             Some(count) => *count += 1,
@@ -149,7 +145,7 @@ pub fn unordered_hashcmp<
     'a,
     #[cfg(feature = "nanoserde")] T: Hash + Clone + PartialEq + Eq + SerBin + DeBin + 'a,
     #[cfg(not(feature = "nanoserde"))] T: Hash + Clone + PartialEq + Eq + 'a,
-    B: Iterator<Item = &'a T> + ExactSizeIterator,
+    B: Iterator<Item = &'a T>,
 >(
     previous: B,
     current: B,
@@ -168,7 +164,8 @@ pub fn unordered_hashcmp<
         ));
     }
 
-    let mut ret: Vec<UnorderedArrayLikeChange<&T>> = vec![];
+    let mut ret: Vec<UnorderedArrayLikeChange<&T>> =
+        Vec::with_capacity((previous.len() + current.len()) >> 1);
 
     for (k, current_count) in current.iter() {
         match previous.remove(k) {
@@ -206,6 +203,8 @@ pub fn unordered_hashcmp<
     for (k, v) in previous.into_iter() {
         ret.push(UnorderedArrayLikeChange::new(k, v, InsertOrRemove::Remove))
     }
+
+    ret.shrink_to_fit();
 
     match ret.is_empty() {
         true => None,

@@ -95,8 +95,8 @@ impl TestBench {
         assert_eq_unordered_sort!(self.d, right.d, "{:?}", diff);
         assert_eq_unordered_sort!(
             self.e.iter().map(|x| x.0).collect::<Vec<_>>(),
-            right.e.iter().map(|x| x.0).collect::<Vec<_>>(), 
-            "{:?}", 
+            right.e.iter().map(|x| x.0).collect::<Vec<_>>(),
+            "{:?}",
             diff
         );
         assert_eq_unordered_sort!(self.f, right.f, "{:?}", diff);
