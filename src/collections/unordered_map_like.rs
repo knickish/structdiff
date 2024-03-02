@@ -111,7 +111,8 @@ fn collect_into_key_eq_map<
 >(
     list: B,
 ) -> HashMap<&'a K, (&'a V, usize)> {
-    let mut map: HashMap<&K, (&V, usize)> = HashMap::new();
+    let mut map: HashMap<&K, (&V, usize)> =
+        HashMap::with_capacity(list.size_hint().1.unwrap_or_default());
     for (key, value) in list {
         match map.get_mut(&key) {
             Some((_, count)) => *count += 1,
@@ -225,7 +226,8 @@ pub fn unordered_hashcmp<
         )));
     }
 
-    let mut ret: Vec<UnorderedMapLikeChange<&'a K, &'a V>> = vec![];
+    let mut ret: Vec<UnorderedMapLikeChange<&'a K, &'a V>> =
+        Vec::with_capacity((previous.len() + current.len()) >> 1);
 
     for (&k, &(v, current_count)) in current.iter() {
         match previous.remove(&k) {
@@ -282,6 +284,8 @@ pub fn unordered_hashcmp<
             Operation::Remove,
         ))
     }
+
+    ret.shrink_to_fit();
 
     match ret.is_empty() {
         true => None,

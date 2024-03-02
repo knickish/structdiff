@@ -110,7 +110,7 @@ fn collect_into_key_eq_map<
 >(
     list: B,
 ) -> HashMap<&'a K, &'a V> {
-    let mut map: HashMap<&K, &V> = HashMap::new();
+    let mut map: HashMap<&K, &V> = HashMap::with_capacity(list.size_hint().1.unwrap_or_default());
     for (key, value) in list {
         map.insert(key, value);
     }
@@ -170,7 +170,8 @@ pub fn unordered_hashcmp<
             ));
         }
 
-        let mut ret: Vec<UnorderedMapLikeRecursiveChangeRef<'a, K, V>> = vec![];
+        let mut ret: Vec<UnorderedMapLikeRecursiveChangeRef<'a, K, V>> =
+            Vec::with_capacity((previous.len() + current.len()) >> 1);
 
         for prev_entry in previous.into_iter() {
             if current.remove_entry(prev_entry.0).is_none() {
@@ -188,6 +189,8 @@ pub fn unordered_hashcmp<
             ))
         }
 
+        ret.shrink_to_fit();
+
         match ret.is_empty() {
             true => None,
             false => Some(UnorderedMapLikeRecursiveDiffRef(
@@ -203,7 +206,8 @@ pub fn unordered_hashcmp<
             ));
         }
 
-        let mut ret: Vec<UnorderedMapLikeRecursiveChangeRef<'a, K, V>> = vec![];
+        let mut ret: Vec<UnorderedMapLikeRecursiveChangeRef<'a, K, V>> =
+            Vec::with_capacity((previous.len() + current.len()) >> 1);
 
         for prev_entry in previous.into_iter() {
             match current.remove_entry(prev_entry.0) {
@@ -228,6 +232,8 @@ pub fn unordered_hashcmp<
             ))
         }
 
+        ret.shrink_to_fit();
+
         match ret.is_empty() {
             true => None,
             false => Some(UnorderedMapLikeRecursiveDiffRef(
@@ -245,7 +251,7 @@ pub fn apply_unordered_hashdiffs<
 >(
     list: B,
     diffs: UnorderedMapLikeRecursiveDiffOwned<K, V>,
-) -> Box<dyn Iterator<Item = (K, V)>> {
+) -> Box<dyn ExactSizeIterator<Item = (K, V)>> {
     let diffs = match diffs {
         UnorderedMapLikeRecursiveDiffOwned(
             UnorderedMapLikeRecursiveDiffInternalOwned::Replace(replacement),

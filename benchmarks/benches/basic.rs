@@ -38,7 +38,7 @@ fn bench_basic_generation(c: &mut Criterion) {
         b.iter(|| {
             let diff = black_box(StructDiff::diff_ref(&first, &second));
             black_box(diff);
-        })       
+        })
     });
     group.finish();
 }
@@ -47,7 +47,7 @@ fn bench_basic_full(c: &mut Criterion) {
     const GROUP_NAME: &str = "bench_basic";
     let mut rng = WyRand::new_seed(SEED);
     let mut first = black_box(TestBench::generate_random(&mut rng));
-    
+
     let second = black_box(TestBench::generate_random(&mut rng));
     let mut diff: Vec<<TestBench as StructDiff>::Diff> = Vec::new();
     let mut group = c.benchmark_group(GROUP_NAME);
@@ -58,7 +58,7 @@ fn bench_basic_full(c: &mut Criterion) {
         b.iter(|| {
             diff = black_box(StructDiff::diff(&first, &second));
             black_box(first.apply_mut(diff.clone()));
-        })       
+        })
     });
     group.finish();
     first.assert_eq(second, &diff);
