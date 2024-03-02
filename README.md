@@ -65,6 +65,7 @@ For more examples take a look at [integration tests](/tests)
 - [`nanoserde`, `serde`] - Serialization of `Difference` derived associated types. Allows diffs to easily be sent over network.
 - `debug_diffs` - Derive `Debug` on the generated diff type
 - `generated_setters` - Enable generation of setters for struct fields. These setters automatically return a diff if a field's value is changed by the assignment.
+- `rustc_hash` - Use the (non-cryptographic) hash implementation from the `rustc-hash` crate instead of the default hasher. Much faster diff generation for collections at the cost of a dependency.
 
 ### Development status 
 This is being used actively for my own projects, although it's mostly working now. PRs will be accepted for either more tests or functionality.

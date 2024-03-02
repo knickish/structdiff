@@ -5,7 +5,13 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "debug_diffs")]
 use std::fmt::Debug;
 
-use std::{collections::HashMap, hash::Hash, marker::PhantomData};
+#[cfg(not(feature = "rustc_hash"))]
+type HashMap<K, V> = std::collections::HashMap<K, V>;
+#[cfg(feature = "rustc_hash")]
+type HashMap<K, V> =
+    std::collections::HashMap<K, V, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>;
+
+use std::{hash::Hash, marker::PhantomData};
 
 use crate::StructDiff;
 
@@ -110,7 +116,9 @@ fn collect_into_key_eq_map<
 >(
     list: B,
 ) -> HashMap<&'a K, &'a V> {
-    let mut map: HashMap<&K, &V> = HashMap::with_capacity(list.size_hint().1.unwrap_or_default());
+    let mut map: HashMap<&K, &V> = HashMap::default();
+    map.reserve(list.size_hint().1.unwrap_or_default());
+
     for (key, value) in list {
         map.insert(key, value);
     }
