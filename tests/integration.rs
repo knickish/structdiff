@@ -524,6 +524,7 @@ fn test_setters() {
 
     for _ in 0..100 {
         end = TestSetters::next();
+        let base_clone = base.clone();
         partial_diffs.extend(base.testing123(end.f0.clone()));
         partial_diffs.extend(base.set_f1_with_diff(end.f1.clone()));
         partial_diffs.extend(base.set_f2_with_diff(end.f2.clone()));
@@ -531,7 +532,7 @@ fn test_setters() {
         partial_diffs.extend(base.set_f4_with_diff(end.f4.clone()));
         partial_diffs.extend(base.set_f5_with_diff(end.f5.clone()));
         partial_diffs.extend(base.set_f6_with_diff(end.f6.clone()));
-        let tmp = base.apply_ref(partial_diffs.clone());
+        let tmp = base_clone.apply_ref(partial_diffs.clone());
         assert_eq!(&tmp.f0, &end.f0);
         assert_eq!(&tmp.f1, &end.f1);
         assert_eq!(&tmp.f2, &end.f2);
@@ -539,7 +540,14 @@ fn test_setters() {
         assert_eq_unordered!(&tmp.f4, &end.f4);
         assert_eq_unordered!(&tmp.f5, &end.f5);
         assert_eq_unordered!(&tmp.f6, &end.f6);
-        base = end.clone();
+
+        assert_eq!(&base.f0, &end.f0);
+        assert_eq!(&base.f1, &end.f1);
+        assert_eq!(&base.f2, &end.f2);
+        assert_eq!(&base.f3, &end.f3);
+        assert_eq_unordered!(&base.f4, &end.f4);
+        assert_eq_unordered!(&base.f5, &end.f5);
+        assert_eq_unordered!(&base.f6, &end.f6);
         full_diffs.extend(std::mem::take(&mut partial_diffs));
     }
 

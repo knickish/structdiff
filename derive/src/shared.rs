@@ -17,6 +17,7 @@ pub enum MapStrategy {
 
 #[derive(Debug)]
 pub enum CollectionStrategy {
+    OrderedArrayLike,
     UnorderedArrayLikeHash,
     UnorderedMapLikeHash(MapStrategy),
 }
@@ -66,6 +67,7 @@ pub fn attrs_collection_type(attributes: &[crate::parse::Attribute]) -> Option<C
     attributes.iter().find_map(|attr| {
         if attr.tokens.len() == 2 && attr.tokens[0] == "collection_strategy" {
             let strategy = match attr.tokens[1].clone().as_str() {
+                "ordered_array_like" => CollectionStrategy::OrderedArrayLike,
                 "unordered_array_like" => CollectionStrategy::UnorderedArrayLikeHash,
                 "unordered_map_like" => {
                     let map_compare_type = attrs_map_strategy(attributes).unwrap_or_default();

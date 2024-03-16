@@ -5,30 +5,31 @@ use std::fmt::Debug;
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "nanoserde", derive(SerBin))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
-pub enum Change<'a, T> {
+pub(crate) enum OrderedArrayLikeChangeRef<'a, T> {
     Replace(&'a T, usize),
     Insert(&'a T, usize),
     Delete(usize, Option<usize>),
+    #[allow(unused)]
     Swap(usize, usize),
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "nanoserde", derive(SerBin, DeBin))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum ChangeOwned<T> {
+pub(crate) enum OrderedArrayLikeChangeOwned<T> {
     Replace(T, usize),
     Insert(T, usize),
     Delete(usize, Option<usize>),
     Swap(usize, usize),
 }
 
-impl<'a, T: Clone> From<Change<'a, T>> for ChangeOwned<T> {
-    fn from(value: Change<'a, T>) -> Self {
+impl<'a, T: Clone> From<OrderedArrayLikeChangeRef<'a, T>> for OrderedArrayLikeChangeOwned<T> {
+    fn from(value: OrderedArrayLikeChangeRef<'a, T>) -> Self {
         match value {
-            Change::Replace(val, idx) => Self::Replace(val.to_owned(), idx),
-            Change::Insert(val, idx) => Self::Insert(val.to_owned(), idx),
-            Change::Delete(idx, range) => Self::Delete(idx, range),
-            Change::Swap(l, r) => Self::Swap(l, r),
+            OrderedArrayLikeChangeRef::Replace(val, idx) => Self::Replace(val.to_owned(), idx),
+            OrderedArrayLikeChangeRef::Insert(val, idx) => Self::Insert(val.to_owned(), idx),
+            OrderedArrayLikeChangeRef::Delete(idx, range) => Self::Delete(idx, range),
+            OrderedArrayLikeChangeRef::Swap(l, r) => Self::Swap(l, r),
         }
     }
 }
@@ -52,20 +53,31 @@ impl ChangeInternal {
     }
 }
 
-#[cfg(test)]
-impl<'a, T: Clone> Change<'a, T> {
+impl<T> OrderedArrayLikeChangeOwned<T> {
     fn apply(self, container: &mut Vec<T>) {
         match self {
-            Change::Replace(val, loc) => container[loc] = val.clone(),
-            Change::Insert(val, loc) => container.insert(loc, val.clone()),
-            Change::Delete(loc, None) => {
+            OrderedArrayLikeChangeOwned::Replace(val, loc) => container[loc] = val,
+            OrderedArrayLikeChangeOwned::Insert(val, loc) => container.insert(loc, val),
+            OrderedArrayLikeChangeOwned::Delete(loc, None) => {
                 container.remove(loc);
             }
-            Change::Delete(l, Some(r)) => {
+            OrderedArrayLikeChangeOwned::Delete(l, Some(r)) => {
                 container.drain(l..=r);
             }
-            Change::Swap(l, r) => container.swap(l, r),
+            OrderedArrayLikeChangeOwned::Swap(l, r) => container.swap(l, r),
         }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct OrderedArrayLikeDiffOwned<T>(Vec<OrderedArrayLikeChangeOwned<T>>);
+
+#[derive(Clone, Debug)]
+pub struct OrderedArrayLikeDiffRef<'src, T>(Vec<OrderedArrayLikeChangeRef<'src, T>>);
+
+impl<'src, T: Clone> From<OrderedArrayLikeDiffRef<'src, T>> for OrderedArrayLikeDiffOwned<T> {
+    fn from(value: OrderedArrayLikeDiffRef<'src, T>) -> Self {
+        Self(value.0.into_iter().map(Into::into).collect())
     }
 }
 
@@ -80,7 +92,7 @@ fn print_table(table: &Vec<Vec<ChangeInternal>>) {
 pub fn levenshtein<'src, 'target: 'src, T: Clone + PartialEq + Debug + 'target>(
     target: impl IntoIterator<Item = &'target T>,
     source: impl IntoIterator<Item = &'src T>,
-) -> Vec<Change<'src, T>> {
+) -> Option<OrderedArrayLikeDiffRef<'src, T>> {
     let target = target.into_iter().collect::<Vec<_>>();
     let source = source.into_iter().collect::<Vec<_>>();
     let mut table = vec![vec![ChangeInternal::NoOp(0); source.len() + 1]; target.len() + 1];
@@ -93,6 +105,7 @@ pub fn levenshtein<'src, 'target: 'src, T: Clone + PartialEq + Debug + 'target>(
         table[0][j] = ChangeInternal::Delete(j)
     }
 
+    // create cost table
     for target_index in 1..=target.len() {
         let target_entry = target[target_index - 1];
         for source_index in 1..=source.len() {
@@ -124,6 +137,7 @@ pub fn levenshtein<'src, 'target: 'src, T: Clone + PartialEq + Debug + 'target>(
     let mut source_pos = source.len();
     let mut changelist = Vec::new();
 
+    // collect required changes to make source into target
     while target_pos > 0 && source_pos > 0 {
         match &(table[target_pos][source_pos]) {
             ChangeInternal::NoOp(_) => {
@@ -131,16 +145,22 @@ pub fn levenshtein<'src, 'target: 'src, T: Clone + PartialEq + Debug + 'target>(
                 source_pos -= 1;
             }
             ChangeInternal::Replace(_) => {
-                changelist.push(Change::Replace(target[target_pos - 1], source_pos - 1));
+                changelist.push(OrderedArrayLikeChangeRef::Replace(
+                    target[target_pos - 1],
+                    source_pos - 1,
+                ));
                 target_pos -= 1;
                 source_pos -= 1;
             }
             ChangeInternal::Insert(_) => {
-                changelist.push(Change::Insert(target[target_pos - 1], source_pos));
+                changelist.push(OrderedArrayLikeChangeRef::Insert(
+                    target[target_pos - 1],
+                    source_pos,
+                ));
                 target_pos -= 1;
             }
             ChangeInternal::Delete(_) => {
-                changelist.push(Change::Delete(source_pos - 1, None));
+                changelist.push(OrderedArrayLikeChangeRef::Delete(source_pos - 1, None));
                 source_pos -= 1;
             }
         }
@@ -151,35 +171,52 @@ pub fn levenshtein<'src, 'target: 'src, T: Clone + PartialEq + Debug + 'target>(
         }
     }
 
+    // target is longer than source, add the missing elements
     while target_pos > 0 {
-        changelist.push(Change::Insert(target[target_pos - 1], source_pos));
+        changelist.push(OrderedArrayLikeChangeRef::Insert(
+            target[target_pos - 1],
+            source_pos,
+        ));
         target_pos -= 1;
     }
 
+    // source is longer than target, remove the extra elements
     if source_pos > 0 {
-        changelist.push(Change::Delete(0, Some(source_pos - 1)));
+        changelist.push(OrderedArrayLikeChangeRef::Delete(0, Some(source_pos - 1)));
     }
-    changelist
+
+    match changelist.is_empty() {
+        true => None,
+        false => Some(OrderedArrayLikeDiffRef(changelist)),
+    }
 }
 
-#[cfg(test)]
-pub fn apply_changes<'src, T: Clone, L: IntoIterator<Item = T> + FromIterator<T>>(
-    changes: Vec<Change<'src, T>>,
+pub fn apply<T, L>(
+    changes: impl Into<OrderedArrayLikeDiffOwned<T>>,
     existing: L,
-) -> L {
+) -> Box<dyn Iterator<Item = T>>
+where
+    T: Clone + 'static,
+    L: IntoIterator<Item = T> + FromIterator<T>,
+{
     let mut ret = existing.into_iter().collect::<Vec<_>>();
 
-    for change in changes {
+    for change in changes.into().0 {
         change.apply(&mut ret)
     }
 
-    ret.into_iter().collect()
+    Box::new(ret.into_iter())
 }
 
 #[cfg(test)]
 mod test {
+    use std::collections::LinkedList;
+
     use super::*;
+    use crate as structdiff;
     use nanorand::{Rng, WyRand};
+
+    use structdiff::{Difference, StructDiff};
 
     #[test]
     fn test_string() {
@@ -189,8 +226,12 @@ mod test {
         let s1_vec = s1.chars().collect::<Vec<_>>();
         let s2_vec = s2.chars().collect::<Vec<_>>();
 
-        let changes = levenshtein(&s1_vec, &s2_vec);
-        let changed = apply_changes(changes, s2.chars().collect::<Vec<_>>())
+        let Some(changes) = levenshtein(&s1_vec, &s2_vec) else {
+            assert_eq!(&s1_vec, &s2_vec);
+            return;
+        };
+
+        let changed = apply(changes, s2.chars().collect::<Vec<_>>())
             .into_iter()
             .collect::<String>();
         assert_eq!(s1, changed)
@@ -201,9 +242,13 @@ mod test {
         let s1: Vec<char> = "abc".chars().collect();
         let s2: Vec<char> = "".chars().collect();
 
-        let changes = levenshtein(&s1, &s2);
+        let Some(changes) = levenshtein(&s1, &s2) else {
+            assert_eq!(s1, s2);
+            return;
+        };
+
         assert_eq!(
-            changes.len(),
+            changes.0.len(),
             s1.len(),
             "Should require deletions for all characters in the non-empty string."
         );
@@ -214,9 +259,13 @@ mod test {
         let s1: Vec<char> = "".chars().collect();
         let s2: Vec<char> = "".chars().collect();
 
-        let changes = levenshtein(&s1, &s2);
+        let Some(changes) = levenshtein(&s1, &s2) else {
+            assert_eq!(s1, s2);
+            return;
+        };
+
         assert!(
-            changes.is_empty(),
+            changes.0.is_empty(),
             "No changes should be needed for two empty strings."
         );
     }
@@ -226,7 +275,7 @@ mod test {
         let s1: Vec<char> = "rust".chars().collect();
         let changes = levenshtein(&s1, &s1);
         assert!(
-            changes.is_empty(),
+            changes.is_none(),
             "No changes should be needed for identical strings."
         );
     }
@@ -262,8 +311,12 @@ mod test {
             let s1_vec: Vec<char> = s1.chars().collect();
             let s2_vec: Vec<char> = s2.chars().collect();
 
-            let changes = levenshtein(&s1_vec, &s2_vec);
-            let changed = apply_changes(changes, s2_vec.clone())
+            let Some(changes) = levenshtein(&s1_vec, &s2_vec) else {
+                assert_eq!(&s1_vec, &s2_vec);
+                return;
+            };
+
+            let changed = apply(changes, s2_vec.clone())
                 .into_iter()
                 .collect::<Vec<char>>();
             assert_eq!(s1_vec, changed)
@@ -282,9 +335,100 @@ mod test {
             let list1: Vec<f64> = (0..list1_len).map(|_| rng.generate::<f64>()).collect();
             let list2: Vec<f64> = (0..list2_len).map(|_| rng.generate::<f64>()).collect();
 
-            let changes = levenshtein(&list1, &list2);
-            let changed = apply_changes(changes, list2.clone());
+            let Some(changes) = levenshtein(&list1, &list2) else {
+                assert_eq!(&list1, &list2);
+                return;
+            };
+
+            let changed = apply(changes, list2.clone()).collect::<Vec<_>>();
             assert_eq!(list1, changed)
         }
+    }
+
+    #[test]
+    fn test_collection_strategies() {
+        #[derive(Debug, PartialEq, Clone, Default, Difference)]
+        #[difference(setters)]
+        struct TestCollection {
+            #[difference(collection_strategy = "ordered_array_like")]
+            test1: Vec<i32>,
+            #[difference(collection_strategy = "ordered_array_like")]
+            test2: LinkedList<i32>,
+        }
+
+        let first = TestCollection {
+            test1: vec![10, 15, 20, 25, 30],
+            test2: vec![10, 15, 17].into_iter().collect(),
+        };
+
+        let second = TestCollection {
+            test1: Vec::default(),
+            test2: vec![10, 15, 17, 19].into_iter().collect(),
+        };
+
+        let diffs = first.diff(&second).to_owned();
+
+        type TestCollectionFields = <TestCollection as StructDiff>::Diff;
+
+        if let TestCollectionFields::test1(OrderedArrayLikeDiffOwned(val)) = &diffs[0] {
+            assert_eq!(val.len(), 1);
+        } else {
+            panic!("Collection strategy failure");
+        }
+
+        if let TestCollectionFields::test2(OrderedArrayLikeDiffOwned(val)) = &diffs[1] {
+            assert_eq!(val.len(), 1);
+        } else {
+            panic!("Collection strategy failure");
+        }
+
+        let diffed = first.apply(diffs);
+
+        assert_eq!(diffed.test1, second.test1);
+        assert_eq!(diffed.test2, second.test2);
+    }
+
+    #[test]
+    fn test_collection_strategies_ref() {
+        #[derive(Debug, PartialEq, Clone, Difference, Default)]
+        #[difference(setters)]
+        struct TestCollection {
+            #[difference(collection_strategy = "ordered_array_like")]
+            test1: Vec<i32>,
+            #[difference(collection_strategy = "ordered_array_like")]
+            test2: LinkedList<i32>,
+        }
+
+        let first = TestCollection {
+            test1: vec![10, 15, 20, 25, 30],
+            test2: vec![10, 15, 17].into_iter().collect(),
+        };
+
+        let second = TestCollection {
+            test1: Vec::default(),
+            test2: vec![10, 15, 17, 19].into_iter().collect(),
+        };
+
+        let diffs = first.diff_ref(&second).to_owned();
+
+        type TestCollectionFields<'target> = <TestCollection as StructDiff>::DiffRef<'target>;
+
+        if let TestCollectionFields::test1(OrderedArrayLikeDiffRef(val)) = &diffs[0] {
+            assert_eq!(val.len(), 1);
+        } else {
+            panic!("Collection strategy failure");
+        }
+
+        if let TestCollectionFields::test2(OrderedArrayLikeDiffRef(val)) = &diffs[1] {
+            assert_eq!(val.len(), 1);
+        } else {
+            panic!("Collection strategy failure");
+        }
+
+        let owned = diffs.into_iter().map(Into::into).collect();
+        let diffed = first.apply(owned);
+
+        assert_eq!(diffed.test1, second.test1);
+        assert_eq!(diffed.test2, second.test2);
     }
 }

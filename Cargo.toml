@@ -15,7 +15,7 @@ serde               = { version = "^1.0.0", optional = true, features = ["derive
 structdiff-derive   = { path = "derive", version = "=0.6.2" }
 
 [features]
-"default"       = []
+"default"       = ["generated_setters", "debug_diffs"]
 "nanoserde"     = ["dep:nanoserde", "structdiff-derive/nanoserde"]
 "serde"         = ["dep:serde", "structdiff-derive/serde"]
 "debug_diffs"   = ["structdiff-derive/debug_diffs"]

@@ -50,10 +50,11 @@ For more examples take a look at [integration tests](/tests)
 ## Derive macro attributes
 - `#[difference(skip)]` - Do not consider this field when creating a diff
 - `#[difference(recurse)]` - Generate a StructDiff for this field when creating a diff
-- `#[difference(collection_strategy = {})]` 
-    - `"unordered_array_like"` - Generates a changeset for array-like collections of items which implement `Hash + Eq`, rather than cloning the entire list. (currently works for `Vec`, `BTreeSet`, `LinkedList`, and `HashSet`)
-    - `"unordered_map_like"` - Generates a changeset for map-like collections for which the key implements `Hash + Eq`, rather than cloning the entire map. (currently works for `HashMap` and `BTreeMap`)
-- `#[difference(map_equality = {})]` - Used with `unordered_map_like`, specifies whether the equality check should consider keys only, or both keys and values
+- `#[difference(collection_strategy = {})]`
+    - `"ordered_array_like"` - Generates a minimal changeset for ordered, array-like collections of items which implement `PartialEq`. (uses levenshtein difference)
+    - `"unordered_array_like"` - Generates a minimal changeset for unordered, array-like collections of items which implement `Hash + Eq`.
+    - `"unordered_map_like"` - Generates a minimal changeset for unordered, map-like collections for which the key implements `Hash + Eq`.
+- `#[difference(map_equality = {})]` - Used with `unordered_map_like`
     - `"key_only"` - only replace a key-value pair for which the key has changed
     - `"key_and_value"` - replace a key-value pair if either the key or value has changed
 - `#[difference(setters)]` - Generate setters for all fields in the struct (used on struct)
