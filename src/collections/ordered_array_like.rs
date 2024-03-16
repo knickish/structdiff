@@ -1,9 +1,6 @@
-#[cfg(feature = "nanoserde")]
-use nanoserde::{DeBin, SerBin};
 use std::fmt::Debug;
 
 #[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = "nanoserde", derive(SerBin))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub(crate) enum OrderedArrayLikeChangeRef<'a, T> {
     Replace(&'a T, usize),
@@ -14,7 +11,6 @@ pub(crate) enum OrderedArrayLikeChangeRef<'a, T> {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "nanoserde", derive(SerBin, DeBin))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) enum OrderedArrayLikeChangeOwned<T> {
     Replace(T, usize),
@@ -70,9 +66,11 @@ impl<T> OrderedArrayLikeChangeOwned<T> {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct OrderedArrayLikeDiffOwned<T>(Vec<OrderedArrayLikeChangeOwned<T>>);
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct OrderedArrayLikeDiffRef<'src, T>(Vec<OrderedArrayLikeChangeRef<'src, T>>);
 
 impl<'src, T: Clone> From<OrderedArrayLikeDiffRef<'src, T>> for OrderedArrayLikeDiffOwned<T> {
@@ -206,6 +204,141 @@ where
     }
 
     Box::new(ret.into_iter())
+}
+
+#[cfg(feature = "nanoserde")]
+mod nanoserde_impls {
+    use super::*;
+    use nanoserde::{DeBin, SerBin};
+
+    impl<T> OrderedArrayLikeChangeOwned<T> {
+        #[inline]
+        fn nanoserde_discriminant(&self) -> u8 {
+            match self {
+                OrderedArrayLikeChangeOwned::Replace(_, _) => 0,
+                OrderedArrayLikeChangeOwned::Insert(_, _) => 1,
+                OrderedArrayLikeChangeOwned::Delete(_, _) => 2,
+                OrderedArrayLikeChangeOwned::Swap(_, _) => 3,
+            }
+        }
+    }
+
+    impl<T> OrderedArrayLikeChangeRef<'_, T> {
+        #[inline]
+        fn nanoserde_discriminant(&self) -> u8 {
+            match self {
+                OrderedArrayLikeChangeRef::Replace(_, _) => 0,
+                OrderedArrayLikeChangeRef::Insert(_, _) => 1,
+                OrderedArrayLikeChangeRef::Delete(_, _) => 2,
+                OrderedArrayLikeChangeRef::Swap(_, _) => 3,
+            }
+        }
+    }
+
+    impl<T: SerBin> SerBin for OrderedArrayLikeChangeOwned<T> {
+        fn ser_bin(&self, output: &mut Vec<u8>) {
+            match self {
+                OrderedArrayLikeChangeOwned::Replace(val, idx) => {
+                    self.nanoserde_discriminant().ser_bin(output);
+                    val.ser_bin(output);
+                    idx.ser_bin(output);
+                }
+                OrderedArrayLikeChangeOwned::Insert(val, idx) => {
+                    self.nanoserde_discriminant().ser_bin(output);
+                    val.ser_bin(output);
+                    idx.ser_bin(output);
+                }
+                OrderedArrayLikeChangeOwned::Delete(idx, opt_start) => {
+                    self.nanoserde_discriminant().ser_bin(output);
+                    idx.ser_bin(output);
+                    opt_start.ser_bin(output);
+                }
+                OrderedArrayLikeChangeOwned::Swap(l, r) => {
+                    self.nanoserde_discriminant().ser_bin(output);
+                    l.ser_bin(output);
+                    r.ser_bin(output);
+                }
+            }
+        }
+    }
+
+    impl<T: SerBin> SerBin for OrderedArrayLikeChangeRef<'_, T> {
+        fn ser_bin(&self, output: &mut Vec<u8>) {
+            match self {
+                OrderedArrayLikeChangeRef::Replace(val, idx) => {
+                    self.nanoserde_discriminant().ser_bin(output);
+                    val.ser_bin(output);
+                    idx.ser_bin(output);
+                }
+                OrderedArrayLikeChangeRef::Insert(val, idx) => {
+                    self.nanoserde_discriminant().ser_bin(output);
+                    val.ser_bin(output);
+                    idx.ser_bin(output);
+                }
+                OrderedArrayLikeChangeRef::Delete(idx, opt_start) => {
+                    self.nanoserde_discriminant().ser_bin(output);
+                    idx.ser_bin(output);
+                    opt_start.ser_bin(output);
+                }
+                OrderedArrayLikeChangeRef::Swap(l, r) => {
+                    self.nanoserde_discriminant().ser_bin(output);
+                    l.ser_bin(output);
+                    r.ser_bin(output);
+                }
+            }
+        }
+    }
+
+    impl<T: DeBin> DeBin for OrderedArrayLikeChangeOwned<T> {
+        fn de_bin(offset: &mut usize, bytes: &[u8]) -> Result<Self, nanoserde::DeBinErr> {
+            match <u8 as DeBin>::de_bin(offset, bytes)? {
+                0 => {
+                    let val = <T as DeBin>::de_bin(offset, bytes)?;
+                    let idx = <usize as DeBin>::de_bin(offset, bytes)?;
+                    Ok(OrderedArrayLikeChangeOwned::Replace(val, idx))
+                }
+                1 => {
+                    let val = <T as DeBin>::de_bin(offset, bytes)?;
+                    let idx = <usize as DeBin>::de_bin(offset, bytes)?;
+                    Ok(OrderedArrayLikeChangeOwned::Insert(val, idx))
+                }
+                2 => {
+                    let idx = <usize as DeBin>::de_bin(offset, bytes)?;
+                    let opt_start = <Option<usize> as DeBin>::de_bin(offset, bytes)?;
+                    Ok(OrderedArrayLikeChangeOwned::Delete(idx, opt_start))
+                }
+                3 => {
+                    let l = <usize as DeBin>::de_bin(offset, bytes)?;
+                    let r = <usize as DeBin>::de_bin(offset, bytes)?;
+                    Ok(OrderedArrayLikeChangeOwned::Swap(l, r))
+                }
+                _ => Err(nanoserde::DeBinErr {
+                    o: *offset - 1,
+                    l: 1,
+                    s: 1,
+                }),
+            }
+        }
+    }
+
+    impl<T: SerBin> SerBin for OrderedArrayLikeDiffRef<'_, T> {
+        fn ser_bin(&self, output: &mut Vec<u8>) {
+            self.0.ser_bin(output);
+        }
+    }
+
+    impl<T: SerBin> SerBin for OrderedArrayLikeDiffOwned<T> {
+        fn ser_bin(&self, output: &mut Vec<u8>) {
+            self.0.ser_bin(output);
+        }
+    }
+
+    impl<T: DeBin> DeBin for OrderedArrayLikeDiffOwned<T> {
+        fn de_bin(offset: &mut usize, bytes: &[u8]) -> Result<Self, nanoserde::DeBinErr> {
+            let ret = <Vec<_> as DeBin>::de_bin(offset, bytes)?;
+            Ok(Self(ret))
+        }
+    }
 }
 
 #[cfg(test)]
