@@ -24,22 +24,12 @@ impl<'a, K: Clone, V: Clone> From<UnorderedMapLikeChange<&'a K, &'a V>>
 {
     fn from(value: UnorderedMapLikeChange<&'a K, &'a V>) -> Self {
         match value {
-            UnorderedMapLikeChange::InsertMany(
-                key,
-                value,
-                count,
-            ) => UnorderedMapLikeChange::InsertMany(
-                key.clone(),
-                value.clone(),
-                count,
-            ),
-            UnorderedMapLikeChange::RemoveMany(
-                key,
-                count,
-            ) => UnorderedMapLikeChange::RemoveMany(
-                key.clone(),
-                count,
-            ),
+            UnorderedMapLikeChange::InsertMany(key, value, count) => {
+                UnorderedMapLikeChange::InsertMany(key.clone(), value.clone(), count)
+            }
+            UnorderedMapLikeChange::RemoveMany(key, count) => {
+                UnorderedMapLikeChange::RemoveMany(key.clone(), count)
+            }
             UnorderedMapLikeChange::InsertSingle(key, value) => {
                 UnorderedMapLikeChange::InsertSingle(key.clone(), value.clone())
             }
@@ -142,21 +132,10 @@ impl<K, V> UnorderedMapLikeChange<K, V> {
         debug_assert_ne!(count, 0);
         match (insert_or_remove, count) {
             (Operation::Insert, 1) => UnorderedMapLikeChange::InsertSingle(item.0, item.1),
-            (Operation::Insert, val) => {
-                UnorderedMapLikeChange::InsertMany(
-                    item.0,
-                    item.1,
-                    val,
-                )
-            }
+            (Operation::Insert, val) => UnorderedMapLikeChange::InsertMany(item.0, item.1, val),
             (Operation::Remove, 1) => UnorderedMapLikeChange::RemoveSingle(item.0),
 
-            (Operation::Remove, val) => {
-                UnorderedMapLikeChange::RemoveMany(
-                    item.0,
-                    val,
-                )
-            }
+            (Operation::Remove, val) => UnorderedMapLikeChange::RemoveMany(item.0, val),
         }
     }
 }
@@ -279,10 +258,8 @@ pub fn apply_unordered_hashdiffs<
     };
 
     let (insertions, removals): (Vec<_>, Vec<_>) = diffs.into_iter().partition(|x| match &x {
-        UnorderedMapLikeChange::InsertMany(..)
-        | UnorderedMapLikeChange::InsertSingle(..) => true,
-        UnorderedMapLikeChange::RemoveMany(..)
-        | UnorderedMapLikeChange::RemoveSingle(..) => false,
+        UnorderedMapLikeChange::InsertMany(..) | UnorderedMapLikeChange::InsertSingle(..) => true,
+        UnorderedMapLikeChange::RemoveMany(..) | UnorderedMapLikeChange::RemoveSingle(..) => false,
     });
     let holder: Vec<_> = list.into_iter().collect();
     // let ref_holder: Vec<_> = holder.iter().map(|(k, v)| (k, v)).collect();
@@ -290,9 +267,7 @@ pub fn apply_unordered_hashdiffs<
 
     for remove in removals {
         match remove {
-            UnorderedMapLikeChange::RemoveMany(
-                key, count
-            ) => match list_hash.get_mut(&key) {
+            UnorderedMapLikeChange::RemoveMany(key, count) => match list_hash.get_mut(&key) {
                 Some(val) if val.1 > count => {
                     val.1 -= count;
                 }
@@ -316,18 +291,16 @@ pub fn apply_unordered_hashdiffs<
 
     for insertion in insertions.iter() {
         match insertion {
-            UnorderedMapLikeChange::InsertMany(
-                key,
-                value,
-                count,
-            ) => match list_hash.get_mut(&key) {
-                Some(val) => {
-                    val.1 += count;
+            UnorderedMapLikeChange::InsertMany(key, value, count) => {
+                match list_hash.get_mut(&key) {
+                    Some(val) => {
+                        val.1 += count;
+                    }
+                    None => {
+                        list_hash.insert(key, (value, *count));
+                    }
                 }
-                None => {
-                    list_hash.insert(key, (value, *count));
-                }
-            },
+            }
             UnorderedMapLikeChange::InsertSingle(key, value) => match list_hash.get_mut(&key) {
                 Some(val) => {
                     val.1 += 1;
@@ -355,8 +328,7 @@ pub fn apply_unordered_hashdiffs<
 #[cfg(feature = "nanoserde")]
 mod nanoserde_impls {
     use super::{
-        DeBin, SerBin, UnorderedMapLikeChange, UnorderedMapLikeDiff,
-        UnorderedMapLikeDiffInternal,
+        DeBin, SerBin, UnorderedMapLikeChange, UnorderedMapLikeDiff, UnorderedMapLikeDiffInternal,
     };
 
     impl<K, V> SerBin for UnorderedMapLikeChange<K, V>
@@ -484,9 +456,19 @@ mod nanoserde_impls {
         ) -> Result<UnorderedMapLikeChange<K, V>, nanoserde::DeBinErr> {
             let id: u8 = DeBin::de_bin(offset, bytes)?;
             core::result::Result::Ok(match id {
-                0_u8 => UnorderedMapLikeChange::InsertMany(DeBin::de_bin(offset, bytes)?, DeBin::de_bin(offset, bytes)?, DeBin::de_bin(offset, bytes)?),
-                1_u8 => UnorderedMapLikeChange::RemoveMany(DeBin::de_bin(offset, bytes)?, DeBin::de_bin(offset, bytes)?),
-                2_u8 => UnorderedMapLikeChange::InsertSingle(DeBin::de_bin(offset, bytes)?, DeBin::de_bin(offset, bytes)?),
+                0_u8 => UnorderedMapLikeChange::InsertMany(
+                    DeBin::de_bin(offset, bytes)?,
+                    DeBin::de_bin(offset, bytes)?,
+                    DeBin::de_bin(offset, bytes)?,
+                ),
+                1_u8 => UnorderedMapLikeChange::RemoveMany(
+                    DeBin::de_bin(offset, bytes)?,
+                    DeBin::de_bin(offset, bytes)?,
+                ),
+                2_u8 => UnorderedMapLikeChange::InsertSingle(
+                    DeBin::de_bin(offset, bytes)?,
+                    DeBin::de_bin(offset, bytes)?,
+                ),
                 3_u8 => UnorderedMapLikeChange::RemoveSingle(DeBin::de_bin(offset, bytes)?),
                 _ => {
                     return core::result::Result::Err(nanoserde::DeBinErr {

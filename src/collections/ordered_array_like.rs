@@ -90,98 +90,123 @@ fn print_table(table: &Vec<Vec<ChangeInternal>>) {
 pub fn levenshtein<'src, 'target: 'src, T: Clone + PartialEq + Debug + 'target>(
     target: impl IntoIterator<Item = &'target T>,
     source: impl IntoIterator<Item = &'src T>,
-) -> Option<OrderedArrayLikeDiffRef<'src, T>> {
+) -> Option<OrderedArrayLikeDiffRef<'target, T>> {
+    #[inline]
+    fn create_full_change_table<T: PartialEq>(
+        target: &Vec<&T>,
+        source: &Vec<&T>,
+    ) -> Vec<Vec<ChangeInternal>> {
+        let mut table = vec![vec![ChangeInternal::NoOp(0); source.len() + 1]; target.len() + 1];
+
+        for (i, entry) in table.iter_mut().enumerate().skip(1) {
+            entry[0] = ChangeInternal::Insert(i);
+        }
+
+        for j in 0..=source.len() {
+            table[0][j] = ChangeInternal::Delete(j)
+        }
+
+        // create cost table
+        for target_index in 1..=target.len() {
+            let target_entry = target[target_index - 1];
+            for source_index in 1..=source.len() {
+                let source_entry = source[source_index - 1];
+
+                if target_entry == source_entry {
+                    table[target_index][source_index] =
+                        ChangeInternal::NoOp(table[target_index - 1][source_index - 1].cost());
+                    // char matches, skip comparisons
+                    continue;
+                }
+
+                let insert = table[target_index - 1][source_index].cost();
+                let delete = table[target_index][source_index - 1].cost();
+                let replace = table[target_index - 1][source_index - 1].cost();
+                let min = insert.min(delete).min(replace);
+
+                if min == replace {
+                    table[target_index][source_index] = ChangeInternal::Replace(min + 1);
+                } else if min == delete {
+                    table[target_index][source_index] = ChangeInternal::Delete(min + 1);
+                } else {
+                    table[target_index][source_index] = ChangeInternal::Insert(min + 1);
+                }
+            }
+        }
+        table
+    }
+
+    #[inline]
+    fn changelist_from_change_table<'target, T: PartialEq>(
+        table: Vec<Vec<ChangeInternal>>,
+        target: &Vec<&'target T>,
+        source: &Vec<&T>,
+    ) -> Vec<OrderedArrayLikeChangeRef<'target, T>> {
+        let mut target_pos = target.len();
+        let mut source_pos = source.len();
+        let mut changelist = Vec::with_capacity(
+            table
+                .last()
+                .and_then(|r| r.last())
+                .map(|c| c.cost())
+                .unwrap_or_default(),
+        );
+
+        // collect required changes to make source into target
+        while target_pos > 0 && source_pos > 0 {
+            match &(table[target_pos][source_pos]) {
+                ChangeInternal::NoOp(_) => {
+                    target_pos -= 1;
+                    source_pos -= 1;
+                }
+                ChangeInternal::Replace(_) => {
+                    changelist.push(OrderedArrayLikeChangeRef::Replace(
+                        target[target_pos - 1],
+                        source_pos - 1,
+                    ));
+                    target_pos -= 1;
+                    source_pos -= 1;
+                }
+                ChangeInternal::Insert(_) => {
+                    changelist.push(OrderedArrayLikeChangeRef::Insert(
+                        target[target_pos - 1],
+                        source_pos,
+                    ));
+                    target_pos -= 1;
+                }
+                ChangeInternal::Delete(_) => {
+                    changelist.push(OrderedArrayLikeChangeRef::Delete(source_pos - 1, None));
+                    source_pos -= 1;
+                }
+            }
+            if changelist.len() == table[target.len()][source.len()].cost() {
+                target_pos = 0;
+                source_pos = 0;
+                break;
+            }
+        }
+
+        // target is longer than source, add the missing elements
+        while target_pos > 0 {
+            changelist.push(OrderedArrayLikeChangeRef::Insert(
+                target[target_pos - 1],
+                source_pos,
+            ));
+            target_pos -= 1;
+        }
+
+        // source is longer than target, remove the extra elements
+        if source_pos > 0 {
+            changelist.push(OrderedArrayLikeChangeRef::Delete(0, Some(source_pos - 1)));
+        }
+
+        changelist
+    }
+
     let target = target.into_iter().collect::<Vec<_>>();
     let source = source.into_iter().collect::<Vec<_>>();
-    let mut table = vec![vec![ChangeInternal::NoOp(0); source.len() + 1]; target.len() + 1];
-
-    for (i, entry) in table.iter_mut().enumerate().skip(1) {
-        entry[0] = ChangeInternal::Insert(i);
-    }
-
-    for j in 0..=source.len() {
-        table[0][j] = ChangeInternal::Delete(j)
-    }
-
-    // create cost table
-    for target_index in 1..=target.len() {
-        let target_entry = target[target_index - 1];
-        for source_index in 1..=source.len() {
-            let source_entry = source[source_index - 1];
-
-            if target_entry == source_entry {
-                table[target_index][source_index] =
-                    ChangeInternal::NoOp(table[target_index - 1][source_index - 1].cost());
-                // char matches, skip comparisons
-                continue;
-            }
-
-            let insert = table[target_index - 1][source_index].cost();
-            let delete = table[target_index][source_index - 1].cost();
-            let replace = table[target_index - 1][source_index - 1].cost();
-            let min = insert.min(delete).min(replace);
-
-            if min == replace {
-                table[target_index][source_index] = ChangeInternal::Replace(min + 1);
-            } else if min == delete {
-                table[target_index][source_index] = ChangeInternal::Delete(min + 1);
-            } else {
-                table[target_index][source_index] = ChangeInternal::Insert(min + 1);
-            }
-        }
-    }
-
-    let mut target_pos = target.len();
-    let mut source_pos = source.len();
-    let mut changelist = Vec::new();
-
-    // collect required changes to make source into target
-    while target_pos > 0 && source_pos > 0 {
-        match &(table[target_pos][source_pos]) {
-            ChangeInternal::NoOp(_) => {
-                target_pos -= 1;
-                source_pos -= 1;
-            }
-            ChangeInternal::Replace(_) => {
-                changelist.push(OrderedArrayLikeChangeRef::Replace(
-                    target[target_pos - 1],
-                    source_pos - 1,
-                ));
-                target_pos -= 1;
-                source_pos -= 1;
-            }
-            ChangeInternal::Insert(_) => {
-                changelist.push(OrderedArrayLikeChangeRef::Insert(
-                    target[target_pos - 1],
-                    source_pos,
-                ));
-                target_pos -= 1;
-            }
-            ChangeInternal::Delete(_) => {
-                changelist.push(OrderedArrayLikeChangeRef::Delete(source_pos - 1, None));
-                source_pos -= 1;
-            }
-        }
-        if changelist.len() == table[target.len()][source.len()].cost() {
-            target_pos = 0;
-            source_pos = 0;
-            break;
-        }
-    }
-
-    // target is longer than source, add the missing elements
-    while target_pos > 0 {
-        changelist.push(OrderedArrayLikeChangeRef::Insert(
-            target[target_pos - 1],
-            source_pos,
-        ));
-        target_pos -= 1;
-    }
-
-    // source is longer than target, remove the extra elements
-    if source_pos > 0 {
-        changelist.push(OrderedArrayLikeChangeRef::Delete(0, Some(source_pos - 1)));
-    }
+    let table = create_full_change_table(&target, &source);
+    let changelist = changelist_from_change_table(table, &target, &source);
 
     match changelist.is_empty() {
         true => None,
