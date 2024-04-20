@@ -1,6 +1,6 @@
 [package]
 name = "structdiff"
-version = "0.6.3"
+version = "0.7.0"
 edition = "2021"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/knickish/structdiff"
@@ -12,7 +12,7 @@ categories    = ["compression"]
 nanoserde           = { version = "^0.1.37", optional = true }
 rustc-hash          = { version = "1.1.0", optional = true }
 serde               = { version = "^1.0.0", optional = true, features = ["derive"] }
-structdiff-derive   = { path = "derive", version = "=0.6.3" }
+structdiff-derive   = { path = "derive", version = "=0.7.0" }
 
 [features]
 "default"       = []

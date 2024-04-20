@@ -1,6 +1,11 @@
 use std::fmt::Debug;
 
-pub fn hirschberg<'src, 'target: 'src, T: Clone + PartialEq + Debug + 'target>(
+const LEVENSHTEIN_CUTOFF: usize = 8;
+const DELETE_COST: usize = 1;
+const REPLACE_COST: usize = 2;
+const INSERT_COST: usize = 2;
+
+pub fn hirschberg<'src, 'target: 'src, T: Clone + PartialEq + 'target>(
     target: impl IntoIterator<Item = &'target T>,
     source: impl IntoIterator<Item = &'src T>,
 ) -> Option<OrderedArrayLikeDiffRef<'target, T>> {
@@ -28,7 +33,7 @@ pub fn hirschberg<'src, 'target: 'src, T: Clone + PartialEq + Debug + 'target>(
     }
 }
 
-pub fn levenshtein<'src, 'target: 'src, T: Clone + PartialEq + Debug + 'target>(
+pub fn levenshtein<'src, 'target: 'src, T: Clone + PartialEq + 'target>(
     target: impl IntoIterator<Item = &'target T>,
     source: impl IntoIterator<Item = &'src T>,
 ) -> Option<OrderedArrayLikeDiffRef<'target, T>> {
@@ -104,7 +109,7 @@ impl ChangeInternal {
     }
 }
 
-impl<T: Debug> OrderedArrayLikeChangeOwned<T> {
+impl<T> OrderedArrayLikeChangeOwned<T> {
     fn apply(self, container: &mut Vec<T>) {
         match self {
             OrderedArrayLikeChangeOwned::Replace(val, loc) => container[loc] = val,
@@ -166,11 +171,11 @@ fn create_full_change_table<T: PartialEq>(
     let mut table = vec![vec![ChangeInternal::NoOp(0); source.len() + 1]; target.len() + 1];
 
     for (i, entry) in table.iter_mut().enumerate().skip(1) {
-        entry[0] = ChangeInternal::Insert(i);
+        entry[0] = ChangeInternal::Insert(i * INSERT_COST);
     }
 
     for j in 0..=source.len() {
-        table[0][j] = ChangeInternal::Delete(j)
+        table[0][j] = ChangeInternal::Delete(j * DELETE_COST)
     }
 
     // create cost table
@@ -192,11 +197,11 @@ fn create_full_change_table<T: PartialEq>(
             let min = insert.min(delete).min(replace);
 
             if min == replace {
-                table[target_index][source_index] = ChangeInternal::Replace(min + 1);
+                table[target_index][source_index] = ChangeInternal::Replace(min + REPLACE_COST);
             } else if min == delete {
-                table[target_index][source_index] = ChangeInternal::Delete(min + 1);
+                table[target_index][source_index] = ChangeInternal::Delete(min + DELETE_COST);
             } else {
-                table[target_index][source_index] = ChangeInternal::Insert(min + 1);
+                table[target_index][source_index] = ChangeInternal::Insert(min + INSERT_COST);
             }
         }
     }
@@ -204,7 +209,7 @@ fn create_full_change_table<T: PartialEq>(
 }
 
 #[inline]
-fn create_last_change_row<'src, 'target: 'src, T: Clone + PartialEq + Debug + 'target>(
+fn create_last_change_row<'src, 'target: 'src, T: Clone + PartialEq + 'target>(
     target: &[&'target T],
     target_start: usize,
     target_end: usize,
@@ -226,25 +231,29 @@ fn create_last_change_row<'src, 'target: 'src, T: Clone + PartialEq + Debug + 't
     );
 
     let mut table = std::array::from_fn::<_, 2, _>(|_| {
-        Vec::from_iter((0..(source_len + 1)).map(|i| ChangeInternal::Delete(i)))
+        Vec::from_iter((0..(source_len + 1)).map(|i| ChangeInternal::Delete(i * DELETE_COST)))
     });
 
+    let mut target_forward = target_start..target_end;
+    let mut target_rev = (target_end..target_start).rev();
+
     let (target_range, source_range): (
-        Box<dyn Iterator<Item = usize>>,
+        &mut dyn Iterator<Item = usize>,
         Box<dyn Fn() -> Box<dyn Iterator<Item = usize>>>,
     ) = match rev {
         true => (
-            Box::new((target_end..target_start).rev()),
+            &mut target_rev,
             Box::new(|| Box::new((source_end..source_start).rev())),
         ),
         false => (
-            Box::new(target_start..target_end),
+            &mut target_forward,
             Box::new(|| Box::new(source_start..source_end)),
         ),
     };
+
     for target_index in target_range {
         let target_entry = target[target_index];
-        table[1][0] = ChangeInternal::Insert(table[0][0].cost() + 1); // TODO make this configurable
+        table[1][0] = ChangeInternal::Insert(table[0][0].cost() + INSERT_COST); // TODO make this configurable
         for (prev, source_index) in (source_range()).enumerate() {
             let source_entry = source[source_index];
             let curr = prev + 1;
@@ -261,11 +270,11 @@ fn create_last_change_row<'src, 'target: 'src, T: Clone + PartialEq + Debug + 't
             let min = insert.min(delete).min(replace);
 
             if min == replace {
-                table[1][curr] = ChangeInternal::Replace(min + 1);
+                table[1][curr] = ChangeInternal::Replace(min + REPLACE_COST);
             } else if min == delete {
-                table[1][curr] = ChangeInternal::Delete(min + 1);
+                table[1][curr] = ChangeInternal::Delete(min + DELETE_COST);
             } else {
-                table[1][curr] = ChangeInternal::Insert(min + 1);
+                table[1][curr] = ChangeInternal::Insert(min + INSERT_COST);
             }
         }
         table.swap(0, 1);
@@ -275,7 +284,7 @@ fn create_last_change_row<'src, 'target: 'src, T: Clone + PartialEq + Debug + 't
     ret
 }
 
-fn hirschberg_impl<'src, 'target: 'src, T: Clone + PartialEq + Debug + 'target>(
+fn hirschberg_impl<'src, 'target: 'src, T: Clone + PartialEq + 'target>(
     target: &[&'target T],
     source: &[&'src T],
     Indices {
@@ -316,7 +325,10 @@ fn hirschberg_impl<'src, 'target: 'src, T: Clone + PartialEq + Debug + 'target>(
             return Box::new(iter.collect::<Vec<_>>().into_iter());
         }
         (false, false)
-            if target_start.abs_diff(target_end) == 1 || source_start.abs_diff(source_end) == 1 =>
+            if target_start
+                .abs_diff(target_end)
+                .min(source_start.abs_diff(source_end))
+                <= LEVENSHTEIN_CUTOFF =>
         {
             let lev = levenshtein_impl(target, source, indices);
             return Box::new(lev.rev());
@@ -375,7 +387,7 @@ fn hirschberg_impl<'src, 'target: 'src, T: Clone + PartialEq + Debug + 'target>(
     Box::new(left.chain(right))
 }
 
-fn levenshtein_impl<'src, 'target: 'src, T: Clone + PartialEq + Debug + 'target>(
+fn levenshtein_impl<'src, 'target: 'src, T: Clone + PartialEq + 'target>(
     target: &[&'target T],
     source: &[&'src T],
     Indices {
@@ -386,7 +398,7 @@ fn levenshtein_impl<'src, 'target: 'src, T: Clone + PartialEq + Debug + 'target>
     }: Indices,
 ) -> Box<dyn DoubleEndedIterator<Item = OrderedArrayLikeChangeRef<'target, T>> + 'target> {
     #[inline]
-    fn changelist_from_change_table<'src, 'target: 'src, T: PartialEq + Debug>(
+    fn changelist_from_change_table<'src, 'target: 'src, T: PartialEq>(
         table: Vec<Vec<ChangeInternal>>,
         target: &[&'target T],
         _source: &[&'src T],
@@ -563,7 +575,7 @@ pub fn apply<T, L>(
     existing: L,
 ) -> Box<dyn Iterator<Item = T>>
 where
-    T: Clone + Debug + 'static,
+    T: Clone + 'static,
     L: IntoIterator<Item = T> + FromIterator<T>,
 {
     let mut ret = existing.into_iter().collect::<Vec<_>>();
