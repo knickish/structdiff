@@ -1,5 +1,7 @@
 use std::fmt::Debug;
 
+use super::rope::Rope;
+
 const LEVENSHTEIN_CUTOFF: usize = 8;
 const DELETE_COST: usize = 1;
 const REPLACE_COST: usize = 2;
@@ -110,7 +112,7 @@ impl ChangeInternal {
 }
 
 impl<T> OrderedArrayLikeChangeOwned<T> {
-    fn apply(self, container: &mut Vec<T>) {
+    fn apply(self, container: &mut Rope<T>) {
         match self {
             OrderedArrayLikeChangeOwned::Replace(val, loc) => container[loc] = val,
             OrderedArrayLikeChangeOwned::Insert(val, loc) => container.insert(loc, val),
@@ -578,7 +580,7 @@ where
     T: Clone + 'static,
     L: IntoIterator<Item = T> + FromIterator<T>,
 {
-    let mut ret = existing.into_iter().collect::<Vec<_>>();
+    let mut ret = existing.into_iter().collect::<Rope<_>>();
 
     for change in changes.into().0 {
         change.apply(&mut ret);
@@ -882,7 +884,7 @@ mod test {
     fn test_random_f64_lists() {
         let mut rng = WyRand::new();
 
-        for _ in 0..1 {
+        for _ in 0..100 {
             // Generate and test 100 pairs of lists
             let list1_len = rng.generate_range(8..10);
             let list2_len = rng.generate_range(8..10);
