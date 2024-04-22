@@ -4,6 +4,9 @@ use assert_unordered::assert_eq_unordered_sort;
 use nanorand::{Rng, WyRand};
 use structdiff::{Difference, StructDiff};
 
+pub mod basic;
+pub mod large;
+
 #[derive(Debug, Difference, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "compare", derive(diff::Diff))]
 #[cfg_attr(feature = "compare", diff(attr(

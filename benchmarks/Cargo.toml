@@ -36,8 +36,3 @@ harness = false
 [[bench]]
 name = "large"
 harness = false
-
-[[bench]]
-name = "basic_mutate"
-harness = false
-
