@@ -4,6 +4,10 @@ use std::{
     ops::{Index, IndexMut, RangeBounds},
 };
 
+const MAX_SLOT_SIZE: usize = 16;
+const DEF_SLOT_SIZE: usize = 8;
+const UNDERSIZED_SLOT: usize = 3;
+
 pub struct Rope<T>(BTreeMap<usize, VecDeque<T>>);
 pub struct Iter<'rope, T> {
     self_ref: &'rope Rope<T>,
@@ -57,14 +61,14 @@ impl<'rope, T: 'rope> Iterator for Iter<'rope, T> {
             .and_then(|v| v.get(self.in_key));
         let mut new_in_key = self.in_key + 1;
         for key in self.self_ref.0.keys().skip_while(|k| **k != self.key) {
-            while new_in_key
-                < self
-                    .self_ref
-                    .0
-                    .get(key)
-                    .map(VecDeque::len)
-                    .unwrap_or_default()
-            {
+            let max_in_slot = self
+                .self_ref
+                .0
+                .get(key)
+                .map(VecDeque::len)
+                .unwrap_or_default();
+
+            while new_in_key < max_in_slot {
                 if let Some(_) = self.self_ref.0.get(key).and_then(|v| v.get(new_in_key)) {
                     self.key = *key;
                     self.in_key = new_in_key;
@@ -130,27 +134,47 @@ impl<'rope, T: 'rope> IntoIterator for &'rope Rope<T> {
 
 impl<T> FromIterator<T> for Rope<T> {
     fn from_iter<C: IntoIterator<Item = T>>(iter: C) -> Self {
-        let mut mut_self = Self(BTreeMap::from([(0, VecDeque::from_iter(iter))]));
-        mut_self.rebalance(0);
-        mut_self
+        let mut iter = iter.into_iter();
+        let mut counter = 0;
+        let mut current = VecDeque::with_capacity(MAX_SLOT_SIZE);
+        let mut map = BTreeMap::new();
+        while let Some(item) = iter.next() {
+            current.push_back(item);
+            counter += 1;
+            if counter % DEF_SLOT_SIZE == 0 {
+                map.insert(
+                    counter - DEF_SLOT_SIZE,
+                    std::mem::replace(&mut current, VecDeque::with_capacity(MAX_SLOT_SIZE)),
+                );
+            }
+        }
+
+        if !current.is_empty() {
+            map.insert(counter - current.len(), current);
+        }
+
+        Self(map)
     }
 }
 
 impl<T> Rope<T> {
     pub fn new() -> Self {
-        Self(BTreeMap::from([(0, VecDeque::new())]))
+        Self(BTreeMap::from([(
+            0,
+            VecDeque::with_capacity(MAX_SLOT_SIZE),
+        )]))
     }
 
+    #[inline]
     fn key_for_index(&self, index: usize) -> usize {
         self.0
-            .iter()
-            .skip_while(|(&k, content)| k + content.len() < index + 1)
-            .next()
-            .or_else(|| self.0.last_key_value())
+            .range(..=index)
+            .last()
             .map(|(k, _)| *k)
             .unwrap_or_default()
     }
 
+    #[inline]
     pub fn len(&self) -> usize {
         self.0
             .last_key_value()
@@ -168,7 +192,6 @@ impl<T> Rope<T> {
 
         let updated = split
             .into_iter()
-            // .rev()
             .map(|(_, v)| {
                 total -= v.len();
                 (total, v)
@@ -180,36 +203,40 @@ impl<T> Rope<T> {
 
     fn rebalance(&mut self, from: usize) {
         let mut key = self.key_for_index(from);
-        let mut prev_high_index = self
+        let prev_high_index = self
             .0
-            .keys()
+            .range(..key)
             .rev()
-            .skip_while(|&&k| k != key)
-            .skip(1)
             .next()
-            .cloned()
+            .map(|(k, _)| *k)
             .unwrap_or_default();
-        let mut spliterator = self.0.split_off(&prev_high_index).into_iter();
-        let mut accum = VecDeque::with_capacity(8);
+
+        let split = self.0.split_off(&prev_high_index);
+        let mut to_extend_on_orig = Vec::with_capacity(split.len());
+        let mut spliterator = split.into_iter();
+        let mut accum = VecDeque::with_capacity(MAX_SLOT_SIZE);
         let mut leftover = None;
         key = prev_high_index;
         while let Some(mut v) = leftover.take().or_else(|| spliterator.next().map(|t| t.1)) {
-            let accum_size = accum.len();
-            for _ in 0..(8 - accum_size) {
-                accum.extend(v.pop_front())
-            }
+            let end = (DEF_SLOT_SIZE - accum.len()).min(v.len());
+            accum.extend(v.drain(..end));
+
             if !v.is_empty() {
                 leftover = Some(v)
             }
-            if accum.len() == 8 {
-                self.0.insert(key, std::mem::take(&mut accum));
-                key = prev_high_index + 8;
-                prev_high_index = key;
+            if accum.len() == DEF_SLOT_SIZE {
+                to_extend_on_orig.push((
+                    key,
+                    std::mem::replace(&mut accum, VecDeque::with_capacity(MAX_SLOT_SIZE)),
+                ));
+                key += DEF_SLOT_SIZE;
             }
         }
         if !accum.is_empty() {
-            self.0.insert(key, std::mem::take(&mut accum));
+            to_extend_on_orig.push((key, std::mem::take(&mut accum)));
         }
+
+        self.0.extend(to_extend_on_orig)
     }
 
     pub fn insert(&mut self, index: usize, element: T) {
@@ -217,7 +244,7 @@ impl<T> Rope<T> {
         let vec = self.0.entry(key).or_default();
         vec.insert(index - key, element);
         match vec.len() {
-            0..=16 => self.renumber(index),
+            ..=MAX_SLOT_SIZE => self.renumber(index),
             _ => self.rebalance(index),
         }
     }
@@ -227,7 +254,7 @@ impl<T> Rope<T> {
         let vec = self.0.entry(key).or_default();
         vec.remove(index - key);
         match vec.len() {
-            0..=3 => self.rebalance(key),
+            0..=UNDERSIZED_SLOT => self.rebalance(key),
             _ => self.renumber(key),
         }
     }
@@ -256,7 +283,7 @@ impl<T> Rope<T> {
             true => {
                 let v = self.0.get_mut(&l_key).expect("we just looked this key up");
                 v.drain((l_idx - l_key)..=(r_idx - l_key));
-                if v.len() < 4 {
+                if v.len() <= UNDERSIZED_SLOT {
                     self.rebalance(l_key.saturating_sub(1));
                 } else {
                     self.renumber(l_key.saturating_sub(1));
