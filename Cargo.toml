@@ -22,6 +22,7 @@ structdiff-derive   = { path = "derive", version = "=0.7.0" }
 "generated_setters" = ["structdiff-derive/generated_setters"]
 "rustc_hash"    = ["dep:rustc-hash"]
 "debug_asserts" = []
+"__rope_benchmarks" = []
 
 [dev-dependencies]
 bincode             = "1.3.3"

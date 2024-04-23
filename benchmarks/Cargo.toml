@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 assert_unordered    = "0.3.5"
-structdiff  = { path = "..", features = ["serde", "debug_diffs"] }
+structdiff  = { path = "..", features = ["serde", "debug_diffs", "__rope_benchmarks"] }
 nanorand    = { version = "0.7.0" } 
 diff-struct = { version = "0.5.3", optional = true} 
 serde       = { version = "^1.0.0", features = ["derive"] }
@@ -35,4 +35,8 @@ harness = false
 
 [[bench]]
 name = "large"
+harness = false
+
+[[bench]]
+name = "rope"
 harness = false
