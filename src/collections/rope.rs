@@ -1,4 +1,5 @@
 use std::{
+    cmp::Ordering::{Equal, Greater, Less},
     collections::{BTreeMap, VecDeque},
     ops::{Add, Index, IndexMut, RangeBounds, Sub},
     sync::atomic::{AtomicUsize, Ordering::Relaxed},
@@ -6,9 +7,11 @@ use std::{
 
 const MAX_SLOT_SIZE: usize = 16;
 const DEF_SLOT_SIZE: usize = 8;
-const UNDERSIZED_SLOT: usize = 3;
+const UNDERSIZED_SLOT: usize = 1;
 
+#[cfg_attr(test, derive(Clone))]
 pub struct Rope<T>(BTreeMap<Key, VecDeque<T>>);
+
 pub struct Iter<'rope, T> {
     self_ref: &'rope Rope<T>,
     key: usize,
@@ -23,6 +26,13 @@ pub struct IntoIter<T> {
 #[derive(Debug, Default)]
 #[repr(transparent)]
 struct Key(AtomicUsize);
+
+impl Clone for Key {
+    #[inline]
+    fn clone(&self) -> Self {
+        Key::from(Into::<usize>::into(self))
+    }
+}
 
 impl Add for Key {
     type Output = Key;
@@ -265,7 +275,7 @@ impl<T> Rope<T> {
         self.0
             .range((Unbounded, Included(Key::from(index))))
             .last()
-            .map(|(k, _)| Key::from(Into::<usize>::into(k)))
+            .map(|(k, _)| k.clone())
             .unwrap_or_default()
     }
 
@@ -279,14 +289,14 @@ impl<T> Rope<T> {
 
     fn renumber(&mut self, from: usize) {
         let start_key = self.key_for_index(from);
-        let mut v_iter = self.0.range(start_key..);
+        let mut v_iter = self.0.range(&start_key..);
         let start = v_iter
             .next()
             .map(|(k, v)| Into::<usize>::into(k) + v.len())
             .unwrap_or(0);
         let mut total = v_iter.fold(start, |acc, (_, x)| acc + x.len());
 
-        let v_iter = self.0.range(self.key_for_index(from)..);
+        let v_iter = self.0.range(&start_key..);
         v_iter.rev().for_each(|(k, v)| {
             total -= v.len();
             k_set(&k.0, total);
@@ -294,23 +304,25 @@ impl<T> Rope<T> {
     }
 
     fn rebalance(&mut self, from: usize) {
+        use std::ops::Bound::*;
         let key = self.key_for_index(from);
         let prev_high_index = self
             .0
             .range(..key)
             .rev()
             .next()
-            .map(|(k, _)| Key::from(Into::<usize>::into(k)))
+            .map(|(k, _)| k.clone())
             .unwrap_or_default();
         let keys: Vec<Key> = self
             .0
             .range(&prev_high_index..)
-            .map(|(k, _)| Key::from(Into::<usize>::into(k)))
+            .map(|(k, _)| k.clone())
             .collect();
 
         let mut carry = VecDeque::<T>::with_capacity(16);
+        let mut hold = VecDeque::<T>::with_capacity(0);
 
-        for (idx, key) in keys.iter().enumerate() {
+        for key in keys.iter() {
             let entry = self.0.get_mut(&key).unwrap();
             if entry.is_empty() {
                 continue;
@@ -322,42 +334,49 @@ impl<T> Rope<T> {
                 break;
             }
 
-            let mut hold = std::mem::take(entry);
-            'inner: for inner_key in keys[(idx + 1)..].iter() {
-                let inner_entry = self.0.get_mut(inner_key).unwrap();
+            // put the empty holder in the list for now
+            std::mem::swap(entry, &mut hold);
 
+            'inner: for (_inner_key, inner_entry) in self.0.range_mut((Excluded(key), Unbounded)) {
                 match (hold.len().cmp(&DEF_SLOT_SIZE), carry.len()) {
-                    (std::cmp::Ordering::Less, 0) => hold.extend(
+                    (Less, 0) => hold.extend(
                         inner_entry.drain(..(DEF_SLOT_SIZE - hold.len()).min(inner_entry.len())),
                     ),
-                    (std::cmp::Ordering::Equal, 0) => break 'inner,
-                    (std::cmp::Ordering::Greater, 0) => carry.extend(hold.drain(DEF_SLOT_SIZE..)),
-                    (_, carry_len) => {
+                    (Equal, 0) => break 'inner,
+                    (Greater, 0) => {
+                        carry.extend(hold.drain(DEF_SLOT_SIZE..));
+                        break 'inner;
+                    }
+                    (_, _) => {
                         carry.extend(hold.drain(..));
-                        hold.extend(carry.drain(..DEF_SLOT_SIZE.min(carry_len)))
+                        hold.extend(carry.drain(..DEF_SLOT_SIZE.min(carry.len())));
+                        if hold.len() == DEF_SLOT_SIZE {
+                            break 'inner;
+                        }
                     }
                 }
             }
 
-            if hold.len() > DEF_SLOT_SIZE {
-                carry.extend(hold.drain(DEF_SLOT_SIZE..));
-            }
-
-            *self.0.get_mut(&key).unwrap() = hold;
+            // take the empty holder back and leave the values in the map entry
+            std::mem::swap(self.0.get_mut(&key).unwrap(), &mut hold);
         }
 
         self.0.retain(|_, v| !v.is_empty());
         self.renumber(prev_high_index.into());
 
-        if carry.is_empty() {
-            return;
+        // fix up the last entry with any carried values
+        match (carry.len(), self.0.last_entry()) {
+            (0, ..) => return,
+            (_, Some(mut l_entry)) => {
+                let l_entry = l_entry.get_mut();
+                carry.extend(l_entry.drain(..));
+                l_entry.extend(carry.drain(..DEF_SLOT_SIZE.min(carry.len())));
+            }
+            _ => (),
         }
 
-        let mut new_key = self
-            .0
-            .last_key_value()
-            .map(|(k, v)| Into::<usize>::into(k) + v.len())
-            .unwrap_or_default();
+        // add any remaining carry values into new slots at the end
+        let mut new_key = self.len();
         while !carry.is_empty() {
             let carry_len = carry.len();
             match carry_len > DEF_SLOT_SIZE {
@@ -376,13 +395,10 @@ impl<T> Rope<T> {
 
     pub fn insert(&mut self, index: usize, element: T) {
         let key = self.key_for_index(index);
-        let vec = self
-            .0
-            .entry(Key::from(Into::<usize>::into(&key)))
-            .or_default();
+        let vec = self.0.entry(key.clone()).or_default();
         vec.insert(index - Into::<usize>::into(key), element);
         match vec.len() {
-            ..=MAX_SLOT_SIZE => self.renumber(index),
+            oversized if (0..MAX_SLOT_SIZE).contains(&oversized) => self.renumber(index),
             _ => self.rebalance(index),
         }
     }
@@ -486,86 +502,166 @@ impl<T: std::fmt::Display> std::fmt::Display for Rope<T> {
 
 #[cfg(test)]
 mod test {
+    use nanorand::{Rng, WyRand};
+
     use super::Rope;
 
-    #[test]
-    fn test_insert() {
-        let mut rope = Rope::new();
-        let mut vec = Vec::new();
-        for i in 0..17_u16 {
-            rope.insert(rope.len(), i);
-            vec.insert(vec.len(), i);
-            println!("{}", rope);
+    fn rand_string(rng: &mut WyRand) -> String {
+        let base = vec![(); rng.generate_range::<usize, _>(1..=50)];
+        base.into_iter()
+            .map(|_| rng.generate_range::<u32, _>(65..=90) as u32)
+            .filter_map(char::from_u32)
+            .collect::<String>()
+    }
+
+    trait Random {
+        fn generate_random(rng: &mut WyRand) -> Self;
+        fn generate_random_large(rng: &mut WyRand) -> Self;
+        fn random_mutate(self, mutation: Mutation<String>) -> Self;
+    }
+
+    impl Random for Rope<String> {
+        fn generate_random(rng: &mut WyRand) -> Self {
+            (0..rng.generate_range::<u8, _>(5..15))
+                .map(|_| rand_string(rng))
+                .into_iter()
+                .collect()
         }
 
-        rope.insert(3, 1337);
-        vec.insert(3, 1337);
+        fn generate_random_large(rng: &mut WyRand) -> Self {
+            (0..rng.generate_range::<u16, _>(0..(u16::MAX / 5)))
+                .map(|_| rand_string(rng))
+                .into_iter()
+                .collect()
+        }
 
-        println!("{}", rope);
-        assert_eq!(rope.into_iter().collect::<Vec<_>>(), vec);
+        fn random_mutate(mut self, mutation: Mutation<String>) -> Self {
+            match mutation {
+                Mutation::Insert(s, i) => self.insert(i, s),
+                Mutation::Remove(i) => self.remove(i),
+                Mutation::Swap(l, r) => self.swap(l, r),
+                Mutation::Drain(l, r) => self.drain(l..=r),
+            }
+            self
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    enum Mutation<T> {
+        Insert(T, usize),
+        Remove(usize),
+        Swap(usize, usize),
+        Drain(usize, usize),
+    }
+
+    impl Mutation<String> {
+        fn random_mutation(rng: &mut WyRand, len: usize) -> Option<Mutation<String>> {
+            match rng.generate_range(0..4) {
+                0 => Some(Self::Insert(rand_string(rng), rng.generate_range(0..=len))),
+                1 => match len == 0 {
+                    false => Some(Self::Remove(rng.generate_range(0..len))),
+                    true => None,
+                },
+                2 => {
+                    if len == 0 {
+                        return None;
+                    }
+                    let l = rng.generate_range(0..len);
+                    let r = rng.generate_range(0..len);
+                    Some(Self::Swap(l, r))
+                }
+                3 => {
+                    let l = rng.generate_range(0..len);
+                    let r = rng.generate_range(l..len);
+                    Some(Self::Drain(l, r))
+                }
+                _ => None,
+            }
+        }
+    }
+
+    impl Random for Vec<String> {
+        fn generate_random(rng: &mut WyRand) -> Self {
+            (0..rng.generate_range::<u8, _>(5..15))
+                .map(|_| rand_string(rng))
+                .into_iter()
+                .collect()
+        }
+
+        fn generate_random_large(rng: &mut WyRand) -> Self {
+            (0..rng.generate_range::<u16, _>(0..(u16::MAX / 5)))
+                .map(|_| rand_string(rng))
+                .into_iter()
+                .collect()
+        }
+
+        fn random_mutate(mut self, mutation: Mutation<String>) -> Self {
+            match mutation {
+                Mutation::Insert(s, i) => self.insert(i, s),
+                Mutation::Remove(i) => {
+                    self.remove(i);
+                }
+                Mutation::Swap(l, r) => self.swap(l, r),
+                Mutation::Drain(l, r) => {
+                    self.drain(l..=r);
+                }
+            }
+            self
+        }
+    }
+
+    fn test(generator: impl Fn(&mut WyRand) -> Vec<String>, count: usize) {
+        let mut rng = WyRand::new();
+        let mut start_vec = generator(&mut rng);
+        let mut start_rope = start_vec.clone().into_iter().collect::<Rope<_>>();
+        assert_eq!(
+            start_rope.clone().into_iter().collect::<Vec<_>>(),
+            start_vec
+        );
+        for _ in 0..count {
+            let prev_rope = start_rope.clone();
+            let Some(mutation) = Mutation::random_mutation(&mut rng, start_vec.len()) else {
+                continue;
+            };
+
+            let sr_clone = start_rope.clone();
+            let mut_clone = mutation.clone();
+            let result = std::panic::catch_unwind(|| {
+                sr_clone.random_mutate(mut_clone);
+            });
+
+            let Ok(_) = result else {
+                println!("{:?}", mutation);
+                println!("prev_rope: {}", prev_rope);
+                panic!("Caught panic");
+            };
+
+            start_rope = start_rope.random_mutate(mutation.clone());
+            start_vec = start_vec.random_mutate(mutation.clone());
+
+            if start_rope.clone().into_iter().collect::<Vec<_>>() != start_vec {
+                println!("{:?}", mutation);
+                println!("prev_rope: {}", prev_rope);
+                println!("curr_rope: {}", start_rope);
+            }
+            assert_eq!(
+                (&start_rope).into_iter().cloned().collect::<Vec<_>>(),
+                start_rope.clone().into_iter().collect::<Vec<_>>()
+            );
+            assert_eq!(
+                (&start_rope).into_iter().cloned().collect::<Vec<_>>(),
+                start_vec
+            );
+        }
     }
 
     #[test]
-    fn test_delete() {
-        let mut rope = Rope::new();
-        let mut vec = Vec::new();
-        for i in 0..17_u16 {
-            rope.insert(rope.len(), i);
-            vec.insert(vec.len(), i);
-            println!("{}", rope);
-        }
-
-        assert_eq!(vec.len(), rope.len());
-        rope.remove(3);
-        vec.remove(3);
-        assert_eq!(&(&rope).into_iter().cloned().collect::<Vec<_>>(), &vec);
-
-        assert_eq!(vec.len(), rope.len());
-        rope.remove(3);
-        vec.remove(3);
-        assert_eq!(&(&rope).into_iter().cloned().collect::<Vec<_>>(), &vec);
-
-        assert_eq!(vec.len(), rope.len());
-        rope.remove(3);
-        vec.remove(3);
-        assert_eq!(&(&rope).into_iter().cloned().collect::<Vec<_>>(), &vec);
-
-        assert_eq!(vec.len(), rope.len());
-        rope.remove(3);
-        vec.remove(3);
-        println!("{}", rope);
-        assert_eq!(&(&rope).into_iter().cloned().collect::<Vec<_>>(), &vec);
-
-        assert_eq!(vec.len(), rope.len());
-        rope.remove(3);
-        vec.remove(3);
-        println!("{}", rope);
-        assert_eq!(&(&rope).into_iter().cloned().collect::<Vec<_>>(), &vec);
+    fn paired_small() {
+        test(Vec::generate_random, 1_000_000)
     }
 
     #[test]
-    fn test_drain() {
-        let mut rope = Rope::new();
-        let mut vec = Vec::new();
-        for i in 0..17_u16 {
-            rope.insert(rope.len(), i);
-            vec.insert(vec.len(), i);
-            println!("{}", rope);
-        }
-
-        rope.drain(..1);
-        vec.drain(..1);
-        println!("{}", rope);
-        assert_eq!(&(&rope).into_iter().cloned().collect::<Vec<_>>(), &vec);
-
-        rope.drain(15..);
-        vec.drain(15..);
-        println!("{}", rope);
-        assert_eq!(&(&rope).into_iter().cloned().collect::<Vec<_>>(), &vec);
-
-        rope.drain(6..10);
-        vec.drain(6..10);
-        println!("{}", rope);
-        assert_eq!(&(&rope).into_iter().cloned().collect::<Vec<_>>(), &vec);
+    fn paired_large() {
+        test(Vec::generate_random_large, 500)
     }
 }
