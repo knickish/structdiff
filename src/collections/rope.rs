@@ -1,8 +1,7 @@
 use std::{
     cmp::Ordering::{Equal, Greater, Less},
-    collections::{BTreeMap, VecDeque},
-    ops::{Add, Index, IndexMut, RangeBounds, Sub},
-    sync::atomic::{AtomicUsize, Ordering::Relaxed},
+    collections::VecDeque,
+    ops::{Index, IndexMut, RangeBounds},
 };
 
 const MAX_SLOT_SIZE: usize = 16;
@@ -10,7 +9,7 @@ const DEF_SLOT_SIZE: usize = 8;
 const UNDERSIZED_SLOT: usize = 1;
 
 #[cfg_attr(test, derive(Clone))]
-pub struct Rope<T>(BTreeMap<Key, VecDeque<T>>);
+pub struct Rope<T>(Vec<VecDeque<T>>);
 
 pub struct Iter<'rope, T> {
     self_ref: &'rope Rope<T>,
@@ -19,129 +18,37 @@ pub struct Iter<'rope, T> {
     exhausted: bool,
 }
 pub struct IntoIter<T> {
-    self_own: Rope<T>,
+    self_own: VecDeque<VecDeque<T>>,
     internal: Option<<VecDeque<T> as IntoIterator>::IntoIter>,
-}
-
-#[derive(Debug, Default)]
-#[repr(transparent)]
-struct Key(AtomicUsize);
-
-impl Clone for Key {
-    #[inline]
-    fn clone(&self) -> Self {
-        Key::from(Into::<usize>::into(self))
-    }
-}
-
-impl Add for Key {
-    type Output = Key;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        self.0.fetch_add(k_load(rhs.0), Relaxed);
-        self
-    }
-}
-
-impl Add<usize> for Key {
-    type Output = Key;
-
-    fn add(self, rhs: usize) -> Self::Output {
-        self.0.fetch_add(rhs, Relaxed);
-        self
-    }
-}
-
-impl Sub for Key {
-    type Output = Key;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        self.0.fetch_sub(k_load(rhs.0), Relaxed);
-        self
-    }
-}
-
-impl Sub<usize> for Key {
-    type Output = Key;
-
-    fn sub(self, rhs: usize) -> Self::Output {
-        self.0.fetch_sub(rhs, Relaxed);
-        self
-    }
-}
-
-impl PartialEq for Key {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.load(Relaxed) == other.0.load(Relaxed)
-    }
-}
-
-impl From<usize> for Key {
-    fn from(value: usize) -> Self {
-        Self(AtomicUsize::new(value))
-    }
-}
-
-impl Into<usize> for Key {
-    fn into(self) -> usize {
-        self.0.load(Relaxed)
-    }
-}
-
-impl Into<usize> for &Key {
-    fn into(self) -> usize {
-        self.0.load(Relaxed)
-    }
-}
-
-impl PartialOrd for Key {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.0.load(Relaxed).partial_cmp(&other.0.load(Relaxed))
-    }
-}
-
-impl Eq for Key {}
-impl Ord for Key {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        // this is a usize, unless the load fails
-        // we should always succeed at comparing
-        self.partial_cmp(other).unwrap()
-    }
-}
-
-#[inline(always)]
-fn k_load(k: AtomicUsize) -> usize {
-    k.load(Relaxed)
-}
-
-#[inline(always)]
-fn k_set(k: &AtomicUsize, val: usize) {
-    k.store(val, Relaxed)
 }
 
 impl<T> Index<usize> for Rope<T> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
-        self.0
-            .iter()
-            .skip_while(|(k, content)| Into::<usize>::into(*k) + content.len() < index + 1)
-            .next()
-            .map(|(k, content)| content.get(index - Into::<usize>::into(k)))
-            .flatten()
-            .unwrap()
+        let mut seen = 0;
+        for entry in self.0.iter() {
+            seen += entry.len();
+            if seen > index {
+                seen -= entry.len();
+                return &entry[index - seen];
+            }
+        }
+        panic!("Index is {index} but len is {seen}")
     }
 }
 
 impl<T> IndexMut<usize> for Rope<T> {
     fn index_mut(&mut self, index: usize) -> &mut T {
-        self.0
-            .iter_mut()
-            .skip_while(|(k, content)| Into::<usize>::into(*k) + content.len() < index + 1)
-            .next()
-            .map(|(k, content)| content.get_mut(index - Into::<usize>::into(k)))
-            .flatten()
-            .unwrap()
+        let mut seen = 0;
+        for entry in self.0.iter_mut() {
+            seen += entry.len();
+            if seen > index {
+                seen -= entry.len();
+                return &mut entry[index - seen];
+            }
+        }
+        panic!("Index is {index} but len is {seen}")
     }
 }
 
@@ -153,37 +60,19 @@ impl<'rope, T: 'rope> Iterator for Iter<'rope, T> {
             return None;
         }
 
-        let ret = self
-            .self_ref
-            .0
-            .get(&self.key.into())
-            .and_then(|v| v.get(self.in_key));
-        let mut new_in_key = self.in_key + 1;
-        for key in self
-            .self_ref
-            .0
-            .keys()
-            .skip_while(|k| Into::<usize>::into(*k) != self.key)
-        {
-            let max_in_slot = self
-                .self_ref
-                .0
-                .get(key)
-                .map(VecDeque::len)
-                .unwrap_or_default();
+        let ret = &self.self_ref.0[self.key][self.in_key];
 
-            while new_in_key < max_in_slot {
-                if let Some(_) = self.self_ref.0.get(key).and_then(|v| v.get(new_in_key)) {
-                    self.key = Into::<usize>::into(key);
-                    self.in_key = new_in_key;
-                    return ret;
-                }
-                new_in_key += 1;
-            }
-            new_in_key = 0;
+        self.in_key += 1;
+        if self.in_key >= self.self_ref.0[self.key].len() {
+            self.in_key = 0;
+            self.key += 1;
         }
-        self.exhausted = true;
-        ret
+
+        if self.key >= self.self_ref.0.len() {
+            self.exhausted = true;
+        }
+
+        Some(ret)
     }
 }
 
@@ -195,7 +84,7 @@ impl<T> Iterator for IntoIter<T> {
             return ret;
         }
 
-        while let Some(mut vec_iter) = self.self_own.0.pop_first().map(|(_, vec)| vec.into_iter()) {
+        while let Some(mut vec_iter) = self.self_own.pop_front().map(IntoIterator::into_iter) {
             let ret @ Some(_) = vec_iter.next() else {
                 continue;
             };
@@ -215,7 +104,7 @@ impl<T> IntoIterator for Rope<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         IntoIter {
-            self_own: self,
+            self_own: self.0.into(),
             internal: None,
         }
     }
@@ -231,7 +120,7 @@ impl<'rope, T: 'rope> IntoIterator for &'rope Rope<T> {
             self_ref: self,
             key: 0,
             in_key: 0,
-            exhausted: false,
+            exhausted: self.0.len() == 0 || self.0[0].len() == 0,
         }
     }
 }
@@ -241,20 +130,20 @@ impl<T> FromIterator<T> for Rope<T> {
         let mut iter = iter.into_iter();
         let mut counter = 0;
         let mut current = VecDeque::with_capacity(MAX_SLOT_SIZE);
-        let mut map = BTreeMap::new();
+        let mut map = Vec::new();
         while let Some(item) = iter.next() {
             current.push_back(item);
             counter += 1;
             if counter % DEF_SLOT_SIZE == 0 {
-                map.insert(
-                    Key::from(counter - DEF_SLOT_SIZE),
-                    std::mem::replace(&mut current, VecDeque::with_capacity(MAX_SLOT_SIZE)),
-                );
+                map.push(std::mem::replace(
+                    &mut current,
+                    VecDeque::with_capacity(MAX_SLOT_SIZE),
+                ));
             }
         }
 
         if !current.is_empty() {
-            map.insert(Key::from(counter - current.len()), current);
+            map.push(current);
         }
 
         Self(map)
@@ -263,70 +152,49 @@ impl<T> FromIterator<T> for Rope<T> {
 
 impl<T> Rope<T> {
     pub fn new() -> Self {
-        Self(BTreeMap::from([(
-            Key(AtomicUsize::default()),
-            VecDeque::with_capacity(MAX_SLOT_SIZE),
-        )]))
+        Self(Vec::from([VecDeque::with_capacity(MAX_SLOT_SIZE)]))
     }
 
     #[inline]
-    fn key_for_index(&self, index: usize) -> Key {
-        use std::ops::Bound::*;
-        self.0
-            .range((Unbounded, Included(Key::from(index))))
-            .last()
-            .map(|(k, _)| k.clone())
-            .unwrap_or_default()
+    fn key_for_index(&self, index: usize) -> usize {
+        let mut seen = 0;
+        for (idx, entry) in self.0.iter().enumerate() {
+            seen += entry.len();
+            if seen > index {
+                return idx;
+            }
+        }
+        return self.0.len();
+    }
+
+    #[inline]
+    fn key_with_count_for_index(&self, index: usize) -> (usize, usize) {
+        // look at caching the counts and clearing cache on modification
+        let mut seen = 0;
+        for (idx, entry) in self.0.iter().enumerate() {
+            seen += entry.len();
+            if seen > index {
+                seen -= entry.len();
+                return (idx, seen);
+            }
+        }
+        return (self.0.len(), seen);
     }
 
     #[inline]
     pub fn len(&self) -> usize {
-        self.0
-            .last_key_value()
-            .map(|(k, v)| Into::<usize>::into(k) + v.len())
-            .unwrap_or_default()
+        self.0.iter().map(VecDeque::len).fold(0, std::ops::Add::add)
     }
 
-    fn renumber(&mut self, from: usize) {
-        let start_key = self.key_for_index(from);
-        let mut v_iter = self.0.range(&start_key..);
-        let start = v_iter
-            .next()
-            .map(|(k, v)| Into::<usize>::into(k) + v.len())
-            .unwrap_or(0);
-        let mut total = v_iter.fold(start, |acc, (_, x)| acc + x.len());
-
-        let v_iter = self.0.range(&start_key..);
-        v_iter.rev().for_each(|(k, v)| {
-            total -= v.len();
-            k_set(&k.0, total);
-        });
-    }
-
-    fn rebalance(&mut self, from: usize) {
-        use std::ops::Bound::*;
-        let key = self.key_for_index(from);
-        let prev_high_index = self
-            .0
-            .range(..key)
-            .rev()
-            .next()
-            .map(|(k, _)| k.clone())
-            .unwrap_or_default();
-        let keys: Vec<Key> = self
-            .0
-            .range(&prev_high_index..)
-            .map(|(k, _)| k.clone())
-            .collect();
-
+    fn rebalance_from_key(&mut self, start_key: usize) {
         let mut carry = VecDeque::<T>::with_capacity(16);
         let mut hold = VecDeque::<T>::with_capacity(0);
-
-        for key in keys.iter() {
-            let entry = self.0.get_mut(&key).unwrap();
+        for key in start_key..(self.0.len()) {
+            let entry = self.0.get_mut(key).unwrap();
             if entry.is_empty() {
                 continue;
             }
+
             if ((DEF_SLOT_SIZE - UNDERSIZED_SLOT + 1)..=(DEF_SLOT_SIZE + (DEF_SLOT_SIZE / 2)))
                 .contains(&entry.len())
                 && carry.is_empty()
@@ -337,79 +205,100 @@ impl<T> Rope<T> {
             // put the empty holder in the list for now
             std::mem::swap(entry, &mut hold);
 
-            'inner: for (_inner_key, inner_entry) in self.0.range_mut((Excluded(key), Unbounded)) {
-                match (hold.len().cmp(&DEF_SLOT_SIZE), carry.len()) {
-                    (Less, 0) => hold.extend(
-                        inner_entry.drain(..(DEF_SLOT_SIZE - hold.len()).min(inner_entry.len())),
-                    ),
-                    (Equal, 0) => break 'inner,
-                    (Greater, 0) => {
-                        carry.extend(hold.drain(DEF_SLOT_SIZE..));
-                        break 'inner;
-                    }
-                    (_, _) => {
-                        carry.extend(hold.drain(..));
-                        hold.extend(carry.drain(..DEF_SLOT_SIZE.min(carry.len())));
-                        if hold.len() == DEF_SLOT_SIZE {
-                            break 'inner;
+            // adjust size of hold, either taking elements from later chunks or carrying them
+            match (hold.len().cmp(&DEF_SLOT_SIZE), carry.len()) {
+                (Less, 0) => {
+                    let mut iter = self.0.iter_mut().skip(key);
+                    'take: while let Some(take_from) = iter.next() {
+                        while let Some(t) = take_from.pop_front() {
+                            hold.push_back(t);
+                            if hold.len() == DEF_SLOT_SIZE {
+                                break 'take;
+                            }
                         }
                     }
+                }
+                (Less, _) => {
+                    carry.extend(hold.drain(..));
+                    hold.extend(carry.drain(..DEF_SLOT_SIZE.min(carry.len())));
+                    if hold.len() < DEF_SLOT_SIZE {
+                        let mut iter = self.0.iter_mut().skip(key);
+                        'take: while let Some(take_from) = iter.next() {
+                            while let Some(t) = take_from.pop_front() {
+                                hold.push_back(t);
+                                if hold.len() == DEF_SLOT_SIZE {
+                                    break 'take;
+                                }
+                            }
+                        }
+                    }
+                }
+                (Equal, 0) => (),
+                (Equal, _) => {
+                    // optimize this by only doing partial drains
+                    carry.extend(hold.drain(..));
+                    hold.extend(carry.drain(..DEF_SLOT_SIZE));
+                }
+                (Greater, 0) => carry.extend(hold.drain(DEF_SLOT_SIZE..)),
+                (Greater, _) => {
+                    // optimize this by only doing partial drains
+                    carry.extend(hold.drain(..));
+                    hold.extend(carry.drain(..DEF_SLOT_SIZE));
                 }
             }
 
             // take the empty holder back and leave the values in the map entry
-            std::mem::swap(self.0.get_mut(&key).unwrap(), &mut hold);
+            std::mem::swap(self.0.get_mut(key).unwrap(), &mut hold);
         }
 
-        self.0.retain(|_, v| !v.is_empty());
-        self.renumber(prev_high_index.into());
+        self.0.retain(|v| !v.is_empty());
 
         // fix up the last entry with any carried values
-        match (carry.len(), self.0.last_entry()) {
+        match (carry.len(), self.0.last_mut()) {
             (0, ..) => return,
-            (_, Some(mut l_entry)) => {
-                let l_entry = l_entry.get_mut();
-                carry.extend(l_entry.drain(..));
+            (_, Some(l_entry)) => {
                 l_entry.extend(carry.drain(..DEF_SLOT_SIZE.min(carry.len())));
             }
             _ => (),
         }
 
         // add any remaining carry values into new slots at the end
-        let mut new_key = self.len();
         while !carry.is_empty() {
-            let carry_len = carry.len();
-            match carry_len > DEF_SLOT_SIZE {
+            match carry.len() > DEF_SLOT_SIZE {
                 true => {
-                    self.0
-                        .insert(Key::from(new_key), carry.drain(..DEF_SLOT_SIZE).collect());
-                    new_key += DEF_SLOT_SIZE;
+                    self.0.push(carry.drain(..DEF_SLOT_SIZE).collect());
                 }
                 false => {
-                    self.0.insert(Key::from(new_key), carry);
+                    self.0.push(carry);
                     return;
                 }
             }
         }
     }
 
+    fn rebalance(&mut self, from: usize) {
+        let key = self.key_for_index(from);
+        self.rebalance_from_key(key);
+    }
+
     pub fn insert(&mut self, index: usize, element: T) {
-        let key = self.key_for_index(index);
-        let vec = self.0.entry(key.clone()).or_default();
-        vec.insert(index - Into::<usize>::into(key), element);
-        match vec.len() {
-            oversized if (0..MAX_SLOT_SIZE).contains(&oversized) => self.renumber(index),
-            _ => self.rebalance(index),
+        let (key, count) = self.key_with_count_for_index(index);
+        if key == self.0.len() {
+            self.0.push(VecDeque::with_capacity(MAX_SLOT_SIZE));
+        }
+        let vec = self.0.get_mut(key).unwrap();
+        vec.insert(index - count, element);
+        if !(0..MAX_SLOT_SIZE).contains(&vec.len()) {
+            self.rebalance_from_key(key);
         }
     }
 
     pub fn remove(&mut self, index: usize) {
-        let key = self.key_for_index(index);
-        let vec = self.0.get_mut(&key).unwrap();
-        vec.remove(index - Into::<usize>::into(&key));
-        match vec.len() {
-            0..=UNDERSIZED_SLOT => self.rebalance(Into::<usize>::into(&key)),
-            _ => self.renumber(key.into()),
+        let (key, count) = self.key_with_count_for_index(index);
+        let vec = self.0.get_mut(key).unwrap();
+        vec.remove(index - count);
+        if (0..=UNDERSIZED_SLOT).contains(&vec.len()) {
+            self.rebalance_from_key(key.saturating_sub(1));
         }
     }
 
@@ -431,56 +320,55 @@ impl<T> Rope<T> {
             (Bound::Unbounded, Bound::Unbounded) => (0, self.len() - 1),
         };
 
-        let [l_key, r_key] = [l_idx, r_idx].map(|idx| self.key_for_index(idx));
+        let [(l_key, l_key_count), (r_key, r_key_count)] =
+            [l_idx, r_idx].map(|idx| self.key_with_count_for_index(idx));
 
         match l_key == r_key {
             true => {
-                let v = self.0.get_mut(&l_key).expect("we just looked this key up");
-                v.drain(
-                    (l_idx - Into::<usize>::into(&l_key))..=(r_idx - Into::<usize>::into(&l_key)),
-                );
+                let v = self.0.get_mut(l_key).expect("we just looked this key up");
+                v.drain((l_idx - l_key_count)..=(r_idx - l_key_count));
                 if v.len() <= UNDERSIZED_SLOT {
-                    self.rebalance(Into::<usize>::into(l_key).saturating_sub(1));
-                } else {
-                    self.renumber(Into::<usize>::into(&l_key).saturating_sub(1));
+                    self.rebalance_from_key(l_key.saturating_sub(1));
                 }
             }
             false => {
                 self.0
-                    .get_mut(&l_key)
+                    .get_mut(l_key)
                     .unwrap()
-                    .drain((l_idx - Into::<usize>::into(&l_key))..);
+                    .drain((l_idx - l_key_count)..);
+                for v in &mut self.0[(l_key + 1)..r_key] {
+                    v.clear();
+                }
                 self.0
-                    .range_mut((Bound::Excluded(&l_key), Bound::Excluded(&r_key)))
-                    .for_each(|(_, v)| v.clear());
-                self.0
-                    .get_mut(&r_key)
+                    .get_mut(r_key)
                     .unwrap()
-                    .drain(..=(r_idx - Into::<usize>::into(r_key)));
+                    .drain(..=(r_idx - r_key_count));
                 self.rebalance(l_idx);
             }
         }
     }
 
     pub fn swap(&mut self, a: usize, b: usize) {
-        let [l_key, r_key] = [a, b].map(|idx| self.key_for_index(idx));
+        let [(l_key, l_key_count), (r_key, r_key_count)] =
+            [a, b].map(|idx| self.key_with_count_for_index(idx));
         match l_key == r_key {
-            true => self.0.get_mut(&l_key).unwrap().swap(
-                a - Into::<usize>::into(&l_key),
-                b - Into::<usize>::into(&l_key),
-            ),
+            true => self
+                .0
+                .get_mut(l_key)
+                .unwrap()
+                .swap(a - l_key_count, b - l_key_count),
             false => {
                 // more complicated with safe rust than in stdlib Vec
-                let (rk, mut rv) = self.0.remove_entry(&r_key).unwrap();
+                let mut rv = std::mem::take(&mut self.0[r_key]);
                 std::mem::swap(
                     self.0
-                        .get_mut(&l_key)
+                        .get_mut(l_key)
                         .unwrap()
-                        .get_mut(a - Into::<usize>::into(l_key))
+                        .get_mut(a - l_key_count)
                         .unwrap(),
-                    rv.get_mut(b - Into::<usize>::into(r_key)).unwrap(),
+                    rv.get_mut(b - r_key_count).unwrap(),
                 );
-                self.0.insert(rk, rv);
+                self.0[r_key] = rv;
             }
         }
     }
@@ -489,12 +377,14 @@ impl<T> Rope<T> {
 #[cfg(test)]
 impl<T: std::fmt::Display> std::fmt::Display for Rope<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (key, vals) in self.0.iter() {
-            write!(f, "{}: [", Into::<usize>::into(key))?;
+        let mut seen = 0;
+        for vals in self.0.iter() {
+            write!(f, "{seen}: [")?;
             for val in vals {
                 write!(f, "{},", val)?;
             }
             write!(f, "];\n")?;
+            seen += vals.len();
         }
         Ok(())
     }
@@ -507,7 +397,7 @@ mod test {
     use super::Rope;
 
     fn rand_string(rng: &mut WyRand) -> String {
-        let base = vec![(); rng.generate_range::<usize, _>(1..=50)];
+        let base = vec![(); 8];
         base.into_iter()
             .map(|_| rng.generate_range::<u32, _>(65..=90) as u32)
             .filter_map(char::from_u32)
@@ -644,11 +534,11 @@ mod test {
                 println!("prev_rope: {}", prev_rope);
                 println!("curr_rope: {}", start_rope);
             }
-            assert_eq!(
+            pretty_assertions::assert_eq!(
                 (&start_rope).into_iter().cloned().collect::<Vec<_>>(),
                 start_rope.clone().into_iter().collect::<Vec<_>>()
             );
-            assert_eq!(
+            pretty_assertions::assert_eq!(
                 (&start_rope).into_iter().cloned().collect::<Vec<_>>(),
                 start_vec
             );

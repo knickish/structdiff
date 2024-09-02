@@ -19,3 +19,6 @@ serde               = { version = "^1.0.0", optional = true, features = ["derive
 "serde"     = ["dep:serde"]
 "debug_diffs" = []
 "generated_setters" = []
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(unused)'] }

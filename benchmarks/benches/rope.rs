@@ -47,7 +47,7 @@ impl Random for Rope<String> {
 
     fn generate_random_large(rng: &mut WyRand) -> Self {
         (0..rng.generate_range::<u16, _>(0..(u16::MAX / 5)))
-            .map(|_| rand_string(rng))
+            .map(|_| rand_string_large(rng))
             .into_iter()
             .collect()
     }
@@ -98,7 +98,7 @@ impl Random for Vec<String> {
 
     fn generate_random_large(rng: &mut WyRand) -> Self {
         (0..rng.generate_range::<u16, _>(0..(u16::MAX / 5)))
-            .map(|_| rand_string(rng))
+            .map(|_| rand_string_large(rng))
             .into_iter()
             .collect()
     }
