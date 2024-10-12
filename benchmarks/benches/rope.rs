@@ -6,6 +6,7 @@ use structdiff::collections::rope::Rope;
 
 criterion::criterion_main!(benches);
 
+// criterion_group!(benches, rope);
 criterion_group!(benches, rope, vec);
 
 const GROUP_NAME: &str = "rope";
@@ -46,8 +47,8 @@ impl Random for Rope<String> {
     }
 
     fn generate_random_large(rng: &mut WyRand) -> Self {
-        (0..rng.generate_range::<u16, _>(0..(u16::MAX / 5)))
-            .map(|_| rand_string_large(rng))
+        (0..rng.generate_range::<u32, _>(0..1_000_000))
+            .map(|_| rand_string(rng))
             .into_iter()
             .collect()
     }
@@ -97,8 +98,8 @@ impl Random for Vec<String> {
     }
 
     fn generate_random_large(rng: &mut WyRand) -> Self {
-        (0..rng.generate_range::<u16, _>(0..(u16::MAX / 5)))
-            .map(|_| rand_string_large(rng))
+        (0..rng.generate_range::<u32, _>(0..1_000_000))
+            .map(|_| rand_string(rng))
             .into_iter()
             .collect()
     }
