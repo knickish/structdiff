@@ -20,10 +20,20 @@ fn rand_string(rng: &mut WyRand) -> String {
         .collect::<String>()
 }
 
+#[allow(dead_code)]
+fn rand_string_large(rng: &mut WyRand) -> String {
+    let base = vec![(); rng.generate_range::<u32, _>(500..1500) as usize];
+    base.into_iter()
+        .map(|_| rng.generate::<u8>() as u32)
+        .filter_map(char::from_u32)
+        .collect::<String>()
+}
+
 trait Random {
     fn generate_random(rng: &mut WyRand) -> Self;
     fn generate_random_large(rng: &mut WyRand) -> Self;
-    fn random_mutate(self, rng: &mut WyRand) -> Self;
+    fn random_mutate(self, rng: &mut WyRand, self_len: usize) -> Self;
+    #[allow(unused)]
     fn random_mutate_large(self, rng: &mut WyRand) -> Self;
 }
 
@@ -42,30 +52,39 @@ impl Random for Rope<String> {
             .collect()
     }
 
-    fn random_mutate(mut self, rng: &mut WyRand) -> Self {
+    fn random_mutate(mut self, rng: &mut WyRand, self_len: usize) -> Self {
         match rng.generate_range(0..4) {
-            0 => self.insert(rng.generate_range(0..self.len()), rand_string(rng)),
-            1 => self.remove(rng.generate_range(0..self.len())),
-            2 => {
-                if self.len() == 0 {
+            0 => self.insert(rng.generate_range(0..self_len), rand_string(rng)),
+            1 => {
+                if self_len == 0 {
                     return self;
                 }
-                let l = rng.generate_range(0..self.len());
-                let r = rng.generate_range(0..self.len());
+                self.remove(rng.generate_range(0..self_len));
+            }
+            2 => {
+                if self_len == 0 {
+                    return self;
+                }
+                let l = rng.generate_range(0..self_len);
+                let r = rng.generate_range(0..self_len);
                 self.swap(l, r)
             }
             3 => {
-                let l = rng.generate_range(0..self.len());
-                let r = rng.generate_range(l..self.len());
+                if self_len == 0 {
+                    return self;
+                }
+                let l = rng.generate_range(0..self_len);
+                let r = rng.generate_range(l..self_len);
                 self.drain(l..=r);
             }
             _ => (),
-        }
+        };
         self
     }
 
     fn random_mutate_large(self, rng: &mut WyRand) -> Self {
-        self.random_mutate(rng)
+        let len = self.len();
+        self.random_mutate(rng, len)
     }
 }
 
@@ -84,23 +103,29 @@ impl Random for Vec<String> {
             .collect()
     }
 
-    fn random_mutate(mut self, rng: &mut WyRand) -> Self {
+    fn random_mutate(mut self, rng: &mut WyRand, self_len: usize) -> Self {
         match rng.generate_range(0..4) {
-            0 => self.insert(rng.generate_range(0..self.len()), rand_string(rng)),
+            0 => self.insert(rng.generate_range(0..self_len), rand_string(rng)),
             1 => {
-                self.remove(rng.generate_range(0..self.len()));
-            }
-            2 => {
-                if self.len() == 0 {
+                if self_len == 0 {
                     return self;
                 }
-                let l = rng.generate_range(0..self.len());
-                let r = rng.generate_range(0..self.len());
+                self.remove(rng.generate_range(0..self_len));
+            }
+            2 => {
+                if self_len == 0 {
+                    return self;
+                }
+                let l = rng.generate_range(0..self_len);
+                let r = rng.generate_range(0..self_len);
                 self.swap(l, r)
             }
             3 => {
-                let l = rng.generate_range(0..self.len());
-                let r = rng.generate_range(l..self.len());
+                if self_len == 0 {
+                    return self;
+                }
+                let l = rng.generate_range(0..self_len);
+                let r = rng.generate_range(l..self_len);
                 self.drain(l..=r);
             }
             _ => (),
@@ -109,7 +134,8 @@ impl Random for Vec<String> {
     }
 
     fn random_mutate_large(self, rng: &mut WyRand) -> Self {
-        self.random_mutate(rng)
+        let len = self.len();
+        self.random_mutate(rng, len)
     }
 }
 
@@ -123,10 +149,11 @@ fn rope(c: &mut Criterion) {
             || {
                 let mut rng = WyRand::new();
                 let start = Rope::generate_random(&mut rng);
-                (start, rng)
+                let len = start.len();
+                (start, rng, len)
             },
-            |(start, mut rng)| {
-                black_box(start.random_mutate(&mut rng));
+            |(start, mut rng, len)| {
+                black_box(start.random_mutate(&mut rng, len));
             },
             BatchSize::LargeInput,
         )
@@ -136,10 +163,11 @@ fn rope(c: &mut Criterion) {
             || {
                 let mut rng = WyRand::new();
                 let start = Rope::generate_random_large(&mut rng);
-                (start, rng)
+                let len = start.len();
+                (start, rng, len)
             },
-            |(start, mut rng)| {
-                black_box(start.random_mutate(&mut rng));
+            |(start, mut rng, len)| {
+                black_box(start.random_mutate(&mut rng, len));
             },
             BatchSize::LargeInput,
         )
@@ -157,10 +185,11 @@ fn vec(c: &mut Criterion) {
             || {
                 let mut rng = WyRand::new();
                 let start = Vec::generate_random(&mut rng);
-                (start, rng)
+                let len = start.len();
+                (start, rng, len)
             },
-            |(start, mut rng)| {
-                black_box(start.random_mutate(&mut rng));
+            |(start, mut rng, len)| {
+                black_box(start.random_mutate(&mut rng, len));
             },
             BatchSize::LargeInput,
         )
@@ -170,10 +199,11 @@ fn vec(c: &mut Criterion) {
             || {
                 let mut rng = WyRand::new();
                 let start = Vec::generate_random_large(&mut rng);
-                (start, rng)
+                let len = start.len();
+                (start, rng, len)
             },
-            |(start, mut rng)| {
-                black_box(start.random_mutate(&mut rng));
+            |(start, mut rng, len)| {
+                black_box(start.random_mutate(&mut rng, len));
             },
             BatchSize::LargeInput,
         )
