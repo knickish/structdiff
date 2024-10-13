@@ -128,13 +128,11 @@ impl<'rope, T: 'rope> IntoIterator for &'rope Rope<T> {
 impl<T> FromIterator<T> for Rope<T> {
     fn from_iter<C: IntoIterator<Item = T>>(iter: C) -> Self {
         let mut iter = iter.into_iter();
-        let mut counter = 0;
         let mut current = VecDeque::with_capacity(MAX_SLOT_SIZE);
         let mut map = Vec::new();
         while let Some(item) = iter.next() {
             current.push_back(item);
-            counter += 1;
-            if counter % DEF_SLOT_SIZE == 0 {
+            if current.len() == DEF_SLOT_SIZE {
                 map.push(std::mem::replace(
                     &mut current,
                     VecDeque::with_capacity(MAX_SLOT_SIZE),
@@ -169,7 +167,6 @@ impl<T> Rope<T> {
 
     #[inline]
     fn key_with_count_for_index(&self, index: usize) -> (usize, usize) {
-        // look at caching the counts and clearing cache on modification
         let mut seen = 0;
         for (idx, entry) in self.0.iter().enumerate() {
             seen += entry.len();
@@ -354,9 +351,9 @@ impl<T> Rope<T> {
     }
 
     pub fn swap(&mut self, a: usize, b: usize) {
-        let (l_key, l_key_count) = self.key_with_count_for_index(a.min(b));
-        let (r_key, r_key_count) =
-            self.key_with_count_for_index_from_prev(a.max(b), l_key, l_key_count);
+        let [a, b] = [a.min(b), a.max(b)];
+        let (l_key, l_key_count) = self.key_with_count_for_index(a);
+        let (r_key, r_key_count) = self.key_with_count_for_index_from_prev(b, l_key, l_key_count);
         match l_key == r_key {
             true => self
                 .0
@@ -364,17 +361,8 @@ impl<T> Rope<T> {
                 .unwrap()
                 .swap(a - l_key_count, b - l_key_count),
             false => {
-                // more complicated with safe rust than in stdlib Vec
-                let mut rv = std::mem::take(&mut self.0[r_key]);
-                std::mem::swap(
-                    self.0
-                        .get_mut(l_key)
-                        .unwrap()
-                        .get_mut(a - l_key_count)
-                        .unwrap(),
-                    rv.get_mut(b - r_key_count).unwrap(),
-                );
-                self.0[r_key] = rv;
+                let (l, r) = self.0.split_at_mut(r_key);
+                std::mem::swap(&mut l[l_key][a - l_key_count], &mut r[0][b - r_key_count]);
             }
         }
     }
