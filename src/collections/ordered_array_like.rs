@@ -540,24 +540,10 @@ fn levenshtein_impl<'src, 'target: 'src, T: Clone + PartialEq + 'target>(
         Box::new(changelist.into_iter())
     }
 
-    let table = match (target_start > target_end, source_start > source_end) {
-        (false, false) => create_full_change_table(
-            &target[target_start..target_end],
-            &source[source_start..source_end],
-        ),
-        (true, true) => create_full_change_table(
-            &target[target_end..target_start],
-            &source[source_end..source_start],
-        ),
-        (false, true) => create_full_change_table(
-            &target[target_start..target_end],
-            &source[source_end..source_start],
-        ),
-        (true, false) => create_full_change_table(
-            &target[target_end..target_start],
-            &source[source_start..source_end],
-        ),
-    };
+    let table = create_full_change_table(
+        &target[target_start.min(target_end)..target_start.max(target_end)],
+        &source[source_start.min(source_end)..source_start.max(source_end)],
+    );
 
     changelist_from_change_table(
         table,
