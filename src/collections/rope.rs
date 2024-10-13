@@ -188,7 +188,10 @@ impl<T> Rope<T> {
         prev: usize,
         mut seen: usize,
     ) -> (usize, usize) {
-        // look at caching the counts and clearing cache on modification
+        if seen > index {
+            // it's in the same chunk, return early
+            return (prev, seen);
+        }
         for (idx, entry) in self.0.iter().enumerate().skip(prev) {
             seen += entry.len();
             if seen > index {
@@ -351,8 +354,9 @@ impl<T> Rope<T> {
     }
 
     pub fn swap(&mut self, a: usize, b: usize) {
-        let (l_key, l_key_count) = self.key_with_count_for_index(a);
-        let (r_key, r_key_count) = self.key_with_count_for_index_from_prev(b, l_key, l_key_count);
+        let (l_key, l_key_count) = self.key_with_count_for_index(a.min(b));
+        let (r_key, r_key_count) =
+            self.key_with_count_for_index_from_prev(a.max(b), l_key, l_key_count);
         match l_key == r_key {
             true => self
                 .0
