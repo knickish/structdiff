@@ -8,92 +8,123 @@ pub use structdiff_derive::Difference;
 
 pub mod collections;
 
+#[cfg(all(feature = "nanoserde", feature = "serde", feature = "debug_diffs"))]
+pub(crate) mod __private {
+    use super::*;
+    pub trait StructDiffOwnedBound:
+        SerBin + DeBin + Serialize + DeserializeOwned + Clone + std::fmt::Debug
+    {
+    }
+    impl<T: SerBin + DeBin + Serialize + DeserializeOwned + Clone + std::fmt::Debug>
+        StructDiffOwnedBound for T
+    {
+    }
+
+    pub trait StructDiffRefBound: SerBin + Serialize + Clone + std::fmt::Debug {}
+    impl<T: SerBin + Serialize + Clone + std::fmt::Debug> StructDiffRefBound for T {}
+}
+
+#[cfg(all(feature = "nanoserde", not(feature = "serde"), feature = "debug_diffs"))]
+pub(crate) mod __private {
+    use super::*;
+
+    pub trait StructDiffOwnedBound: SerBin + DeBin + Clone + std::fmt::Debug {}
+    impl<T: SerBin + DeBin + Clone + std::fmt::Debug> StructDiffOwnedBound for T {}
+
+    pub trait StructDiffRefBound: SerBin + Clone + std::fmt::Debug {}
+    impl<T: SerBin + Clone + std::fmt::Debug> StructDiffRefBound for T {}
+}
+
+#[cfg(all(feature = "serde", not(feature = "nanoserde"), feature = "debug_diffs"))]
+pub(crate) mod __private {
+    use super::*;
+
+    pub trait StructDiffOwnedBound: Serialize + DeserializeOwned + Clone + std::fmt::Debug {}
+    impl<T: Serialize + DeserializeOwned + Clone + std::fmt::Debug> StructDiffOwnedBound for T {}
+
+    pub trait StructDiffRefBound: Serialize + Clone + std::fmt::Debug {}
+    impl<T: Serialize + Clone + std::fmt::Debug> StructDiffRefBound for T {}
+}
+
+#[cfg(all(
+    not(feature = "serde"),
+    not(feature = "nanoserde"),
+    feature = "debug_diffs"
+))]
+pub(crate) mod __private {
+    use super::*;
+
+    pub trait StructDiffOwnedBound: Clone + std::fmt::Debug {}
+    impl<T: Clone + std::fmt::Debug> StructDiffOwnedBound for T {}
+
+    pub trait StructDiffRefBound: Clone + std::fmt::Debug {}
+    impl<T: Clone + std::fmt::Debug> StructDiffRefBound for T {}
+}
+
+#[cfg(all(feature = "nanoserde", feature = "serde", not(feature = "debug_diffs")))]
+pub(crate) mod __private {
+    use super::*;
+    pub trait StructDiffOwnedBound: SerBin + DeBin + Serialize + DeserializeOwned + Clone {}
+    impl<T: SerBin + DeBin + Serialize + DeserializeOwned + Clone> StructDiffOwnedBound for T {}
+
+    pub trait StructDiffRefBound: SerBin + Serialize + Clone {}
+    impl<T: SerBin + Serialize + Clone> StructDiffRefBound for T {}
+}
+
+#[cfg(all(
+    feature = "nanoserde",
+    not(feature = "serde"),
+    not(feature = "debug_diffs")
+))]
+pub(crate) mod __private {
+    use super::*;
+
+    pub trait StructDiffOwnedBound: SerBin + DeBin + Clone {}
+    impl<T: SerBin + DeBin + Clone> StructDiffOwnedBound for T {}
+
+    pub trait StructDiffRefBound: SerBin + Clone {}
+    impl<T: SerBin + Clone> StructDiffRefBound for T {}
+}
+
+#[cfg(all(
+    feature = "serde",
+    not(feature = "nanoserde"),
+    not(feature = "debug_diffs")
+))]
+pub(crate) mod __private {
+    use super::*;
+
+    pub trait StructDiffOwnedBound: Serialize + DeserializeOwned + Clone {}
+    impl<T: Serialize + DeserializeOwned + Clone> StructDiffOwnedBound for T {}
+
+    pub trait StructDiffRefBound: Serialize + Clone {}
+    impl<T: Serialize + Clone> StructDiffRefBound for T {}
+}
+
+#[cfg(all(
+    not(feature = "serde"),
+    not(feature = "nanoserde"),
+    not(feature = "debug_diffs")
+))]
+pub(crate) mod __private {
+
+    pub trait StructDiffOwnedBound: Clone {}
+    impl<T: Clone> StructDiffOwnedBound for T {}
+
+    pub trait StructDiffRefBound: Clone {}
+    impl<T: Clone> StructDiffRefBound for T {}
+}
+
 pub trait StructDiff {
     /// A generated type used to represent the difference
     /// between two instances of a struct which implements
     /// the StructDiff trait.
-    #[cfg(all(feature = "nanoserde", feature = "serde", feature = "debug_diffs"))]
-    type Diff: SerBin + DeBin + Serialize + DeserializeOwned + Clone + std::fmt::Debug;
-    #[cfg(all(feature = "nanoserde", not(feature = "serde"), feature = "debug_diffs"))]
-    type Diff: SerBin + DeBin + Clone + std::fmt::Debug;
-    #[cfg(all(feature = "serde", not(feature = "nanoserde"), feature = "debug_diffs"))]
-    type Diff: Serialize + DeserializeOwned + Clone + std::fmt::Debug;
-    #[cfg(all(
-        not(feature = "serde"),
-        not(feature = "nanoserde"),
-        feature = "debug_diffs"
-    ))]
-    type Diff: Clone + std::fmt::Debug;
-    #[cfg(all(feature = "nanoserde", feature = "serde", not(feature = "debug_diffs")))]
-    type Diff: SerBin + DeBin + Serialize + DeserializeOwned + Clone;
-    #[cfg(all(
-        feature = "nanoserde",
-        not(feature = "serde"),
-        not(feature = "debug_diffs")
-    ))]
-    type Diff: SerBin + DeBin + Clone;
-    #[cfg(all(
-        feature = "serde",
-        not(feature = "nanoserde"),
-        not(feature = "debug_diffs")
-    ))]
-    type Diff: Serialize + DeserializeOwned + Clone;
-    #[cfg(all(
-        not(feature = "serde"),
-        not(feature = "nanoserde"),
-        not(feature = "debug_diffs")
-    ))]
-    type Diff: Clone;
+    type Diff: __private::StructDiffOwnedBound;
 
     /// A generated type used to represent the difference
     /// between two instances of a struct which implements
     /// the StructDiff trait (using references).
-    #[cfg(all(feature = "nanoserde", feature = "serde", feature = "debug_diffs"))]
-    type DiffRef<'target>: SerBin + Serialize + Clone + std::fmt::Debug + Into<Self::Diff>
-    where
-        Self: 'target;
-    #[cfg(all(feature = "nanoserde", not(feature = "serde"), feature = "debug_diffs"))]
-    type DiffRef<'target>: SerBin + Clone + std::fmt::Debug + Into<Self::Diff>
-    where
-        Self: 'target;
-    #[cfg(all(feature = "serde", not(feature = "nanoserde"), feature = "debug_diffs"))]
-    type DiffRef<'target>: Serialize + Clone + std::fmt::Debug + Into<Self::Diff>
-    where
-        Self: 'target;
-    #[cfg(all(
-        not(feature = "serde"),
-        not(feature = "nanoserde"),
-        feature = "debug_diffs"
-    ))]
-    type DiffRef<'target>: Clone + std::fmt::Debug + Into<Self::Diff>
-    where
-        Self: 'target;
-    #[cfg(all(feature = "nanoserde", feature = "serde", not(feature = "debug_diffs")))]
-    type DiffRef<'target>: SerBin + Serialize + Clone + Into<Self::Diff>
-    where
-        Self: 'target;
-    #[cfg(all(
-        feature = "nanoserde",
-        not(feature = "serde"),
-        not(feature = "debug_diffs")
-    ))]
-    type DiffRef<'target>: SerBin + Clone + Into<Self::Diff>
-    where
-        Self: 'target;
-    #[cfg(all(
-        feature = "serde",
-        not(feature = "nanoserde"),
-        not(feature = "debug_diffs")
-    ))]
-    type DiffRef<'target>: Serialize + Clone + Into<Self::Diff>
-    where
-        Self: 'target;
-    #[cfg(all(
-        not(feature = "serde"),
-        not(feature = "nanoserde"),
-        not(feature = "debug_diffs")
-    ))]
-    type DiffRef<'target>: Clone + Into<Self::Diff>
+    type DiffRef<'target>: __private::StructDiffRefBound + Into<Self::Diff>
     where
         Self: 'target;
 

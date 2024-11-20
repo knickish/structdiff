@@ -24,7 +24,6 @@ pub fn hirschberg<'src, 'target: 'src, T: Clone + PartialEq + 'target>(
             source_end: source.len(),
         },
     )
-    .into_iter()
     .collect::<Vec<_>>()
     {
         empty if empty.is_empty() => None,
@@ -52,7 +51,6 @@ pub fn levenshtein<'src, 'target: 'src, T: Clone + PartialEq + 'target>(
             source_end: source.len(),
         },
     )
-    .into_iter()
     .collect::<Vec<_>>()
     {
         empty if empty.is_empty() => None,
@@ -314,8 +312,8 @@ fn hirschberg_impl<'src, 'target: 'src, T: Clone + PartialEq + 'target>(
         (false, true) => {
             let iter: Box<dyn Iterator<Item = _>> = Box::new(
                 target[target_start..target_end]
-                    .into_iter()
-                    .map(|a| *a)
+                    .iter()
+                    .copied()
                     .enumerate()
                     .map(|(i, v)| {
                         let idx = source_end + i;
@@ -367,8 +365,8 @@ fn hirschberg_impl<'src, 'target: 'src, T: Clone + PartialEq + 'target>(
         .unwrap();
 
     let left = hirschberg_impl(
-        &target,
-        &source,
+        target,
+        source,
         Indices {
             target_end: target_split_index,
             source_end: source_split_index,
@@ -377,8 +375,8 @@ fn hirschberg_impl<'src, 'target: 'src, T: Clone + PartialEq + 'target>(
     );
 
     let right = hirschberg_impl(
-        &target,
-        &source,
+        target,
+        source,
         Indices {
             target_start: target_split_index,
             source_start: source_split_index,
@@ -561,8 +559,8 @@ fn levenshtein_impl<'src, 'target: 'src, T: Clone + PartialEq + 'target>(
 
     changelist_from_change_table(
         table,
-        &target,
-        &source,
+        target,
+        source,
         Indices {
             target_start,
             target_end,
