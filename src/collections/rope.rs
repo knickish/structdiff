@@ -82,15 +82,15 @@ impl From<usize> for Key {
     }
 }
 
-impl Into<usize> for Key {
-    fn into(self) -> usize {
-        self.0.load(Relaxed)
+impl From<Key> for usize {
+    fn from(val: Key) -> Self {
+        val.0.load(Relaxed)
     }
 }
 
-impl Into<usize> for &Key {
-    fn into(self) -> usize {
-        self.0.load(Relaxed)
+impl From<&Key> for usize {
+    fn from(val: &Key) -> Self {
+        val.0.load(Relaxed)
     }
 }
 
@@ -127,8 +127,7 @@ impl<T> Index<usize> for Rope<T> {
             .iter()
             .skip_while(|(k, content)| Into::<usize>::into(*k) + content.len() < index + 1)
             .next()
-            .map(|(k, content)| content.get(index - Into::<usize>::into(k)))
-            .flatten()
+            .and_then(|(k, content)| content.get(index - Into::<usize>::into(k)))
             .unwrap()
     }
 }
@@ -139,8 +138,7 @@ impl<T> IndexMut<usize> for Rope<T> {
             .iter_mut()
             .skip_while(|(k, content)| Into::<usize>::into(*k) + content.len() < index + 1)
             .next()
-            .map(|(k, content)| content.get_mut(index - Into::<usize>::into(k)))
-            .flatten()
+            .and_then(|(k, content)| content.get_mut(index - Into::<usize>::into(k)))
             .unwrap()
     }
 }
@@ -173,7 +171,13 @@ impl<'rope, T: 'rope> Iterator for Iter<'rope, T> {
                 .unwrap_or_default();
 
             while new_in_key < max_in_slot {
-                if let Some(_) = self.self_ref.0.get(key).and_then(|v| v.get(new_in_key)) {
+                if self
+                    .self_ref
+                    .0
+                    .get(key)
+                    .and_then(|v| v.get(new_in_key))
+                    .is_some()
+                {
                     self.key = Into::<usize>::into(key);
                     self.in_key = new_in_key;
                     return ret;
@@ -238,11 +242,11 @@ impl<'rope, T: 'rope> IntoIterator for &'rope Rope<T> {
 
 impl<T> FromIterator<T> for Rope<T> {
     fn from_iter<C: IntoIterator<Item = T>>(iter: C) -> Self {
-        let mut iter = iter.into_iter();
+        let iter = iter.into_iter();
         let mut counter = 0;
         let mut current = VecDeque::with_capacity(MAX_SLOT_SIZE);
         let mut map = BTreeMap::new();
-        while let Some(item) = iter.next() {
+        for item in iter {
             current.push_back(item);
             counter += 1;
             if counter % DEF_SLOT_SIZE == 0 {
@@ -258,6 +262,12 @@ impl<T> FromIterator<T> for Rope<T> {
         }
 
         Self(map)
+    }
+}
+
+impl<T> Default for Rope<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -309,8 +319,7 @@ impl<T> Rope<T> {
         let prev_high_index = self
             .0
             .range(..key)
-            .rev()
-            .next()
+            .next_back()
             .map(|(k, _)| k.clone())
             .unwrap_or_default();
         let keys: Vec<Key> = self
@@ -323,7 +332,7 @@ impl<T> Rope<T> {
         let mut hold = VecDeque::<T>::with_capacity(0);
 
         for key in keys.iter() {
-            let entry = self.0.get_mut(&key).unwrap();
+            let entry = self.0.get_mut(key).unwrap();
             if entry.is_empty() {
                 continue;
             }
@@ -358,7 +367,7 @@ impl<T> Rope<T> {
             }
 
             // take the empty holder back and leave the values in the map entry
-            std::mem::swap(self.0.get_mut(&key).unwrap(), &mut hold);
+            std::mem::swap(self.0.get_mut(key).unwrap(), &mut hold);
         }
 
         self.0.retain(|_, v| !v.is_empty());
