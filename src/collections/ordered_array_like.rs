@@ -237,6 +237,7 @@ fn create_last_change_row<'src, 'target: 'src, T: Clone + PartialEq + 'target>(
     let mut target_forward = target_start..target_end;
     let mut target_rev = (target_end..target_start).rev();
 
+    #[allow(clippy::type_complexity)]
     let (target_range, source_range): (
         &mut dyn Iterator<Item = usize>,
         Box<dyn Fn() -> Box<dyn Iterator<Item = usize>>>,
@@ -750,9 +751,7 @@ mod test {
                 return;
             };
 
-            let changed = apply(changes, s2.chars().collect::<Vec<_>>())
-                .into_iter()
-                .collect::<String>();
+            let changed = apply(changes, s2.chars().collect::<Vec<_>>()).collect::<String>();
             assert_eq!(s1, changed)
         }
     }
@@ -765,18 +764,14 @@ mod test {
         let s1_vec = s1.chars().collect::<Vec<_>>();
         let s2_vec = s2.chars().collect::<Vec<_>>();
 
-        for diff_type in [
-            // levenshtein,
-            hirschberg,
-        ] {
+        {
+            let diff_type = hirschberg;
             let Some(changes) = diff_type(&s1_vec, &s2_vec) else {
                 assert_eq!(&s1_vec, &s2_vec);
                 return;
             };
 
-            let changed = apply(changes, s2.chars().collect::<Vec<_>>())
-                .into_iter()
-                .collect::<String>();
+            let changed = apply(changes, s2.chars().collect::<Vec<_>>()).collect::<String>();
             assert_eq!(s1, changed)
         }
     }
@@ -786,10 +781,8 @@ mod test {
         let s1: Vec<char> = "abc".chars().collect();
         let s2: Vec<char> = "".chars().collect();
 
-        for diff_type in [
-            // levenshtein,
-            hirschberg,
-        ] {
+        {
+            let diff_type = hirschberg;
             let Some(changes) = diff_type(&s1, &s2) else {
                 assert_eq!(s1, s2);
                 return;
@@ -870,9 +863,7 @@ mod test {
                     continue;
                 };
 
-                let changed = apply(changes, s2_vec.clone())
-                    .into_iter()
-                    .collect::<Vec<char>>();
+                let changed = apply(changes, s2_vec.clone()).collect::<Vec<char>>();
                 assert_eq!(&s1_vec, &changed);
             }
         }
@@ -1005,9 +996,7 @@ mod test {
                 return;
             };
 
-            let changed = apply(changes, s2.chars().collect::<Vec<_>>())
-                .into_iter()
-                .collect::<String>();
+            let changed = apply(changes, s2.chars().collect::<Vec<_>>()).collect::<String>();
             assert_eq!(s1, changed)
         }
 
@@ -1024,9 +1013,7 @@ mod test {
                 return;
             };
 
-            let changed = apply(changes, s2.chars().collect::<Vec<_>>())
-                .into_iter()
-                .collect::<String>();
+            let changed = apply(changes, s2.chars().collect::<Vec<_>>()).collect::<String>();
             assert_eq!(s1, changed)
         }
 
@@ -1043,9 +1030,7 @@ mod test {
                     return;
                 };
 
-                let changed = apply(changes, s2.chars().collect::<Vec<_>>())
-                    .into_iter()
-                    .collect::<String>();
+                let changed = apply(changes, s2.chars().collect::<Vec<_>>()).collect::<String>();
                 assert_eq!(s1, changed)
             }
         }
@@ -1063,9 +1048,7 @@ mod test {
                     return;
                 };
 
-                let changed = apply(changes, s2.chars().collect::<Vec<_>>())
-                    .into_iter()
-                    .collect::<String>();
+                let changed = apply(changes, s2.chars().collect::<Vec<_>>()).collect::<String>();
                 assert_eq!(s1, changed)
             }
         }
@@ -1083,9 +1066,7 @@ mod test {
                     return;
                 };
 
-                let changed = apply(changes, s2.chars().collect::<Vec<_>>())
-                    .into_iter()
-                    .collect::<String>();
+                let changed = apply(changes, s2.chars().collect::<Vec<_>>()).collect::<String>();
                 assert_eq!(s1, changed)
             }
         }
@@ -1103,9 +1084,7 @@ mod test {
                     return;
                 };
 
-                let changed = apply(changes, s2.chars().collect::<Vec<_>>())
-                    .into_iter()
-                    .collect::<String>();
+                let changed = apply(changes, s2.chars().collect::<Vec<_>>()).collect::<String>();
                 assert_eq!(s1, changed)
             }
         }

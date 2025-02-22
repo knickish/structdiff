@@ -2,10 +2,12 @@
 
 mod derives;
 mod enums;
+mod expose;
 mod types;
 use assert_unordered::{assert_eq_unordered, assert_eq_unordered_sort};
 pub use types::{RandValue, Test, TestEnum, TestSkip};
 
+use std::f32::consts::PI;
 use std::hash::Hash;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, LinkedList},
@@ -49,7 +51,7 @@ fn test_example() {
     };
 
     let second = Example {
-        field1: 3.14,
+        field1: PI as f64,
         field2: vec![1],
         field3: vec![2, 3, 4].into_iter().collect(),
     };
@@ -80,7 +82,7 @@ fn test_derive() {
         test1: first.test1,
         test2: String::from("Hello Diff"),
         test3: vec![1],
-        test4: 3.14,
+        test4: PI,
         test5: Some(12),
     };
 
@@ -104,7 +106,7 @@ fn test_derive_with_skip() {
         test1: first.test1,
         test2: String::from("Hello Diff"),
         test3skip: vec![1],
-        test4: 3.14,
+        test4: PI,
     };
 
     let diffs = first.diff(&second);
@@ -283,6 +285,8 @@ fn test_enums() {
 }
 
 mod derive_inner {
+    use std::f32::consts::PI;
+
     use super::{StructDiff, Test};
     //tests that the associated type does not need to be exported manually
 
@@ -300,7 +304,7 @@ mod derive_inner {
             test1: first.test1,
             test2: String::from("Hello Diff"),
             test3: vec![1],
-            test4: 3.14,
+            test4: PI,
             test5: Some(13),
         };
 
@@ -354,7 +358,7 @@ fn test_recurse() {
             test1: 2,
             test2: String::new(),
             test3: Vec::new(),
-            test4: 3.14,
+            test4: PI,
             test5: None,
         },
         test3: Some(Test::default()),

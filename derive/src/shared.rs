@@ -100,3 +100,11 @@ pub fn attrs_map_strategy(attributes: &[crate::parse::Attribute]) -> Option<MapS
         }
     })
 }
+
+pub fn attrs_expose(attributes: &[crate::parse::Attribute]) -> Option<Option<String>> {
+    attributes.iter().find_map(|attr| match attr.tokens.len() {
+        1 if attr.tokens[0].starts_with("expose") => Some(None),
+        2.. if attr.tokens[0] == "expose" => Some(Some((&attr.tokens[1]).to_string())),
+        _ => return None,
+    })
+}

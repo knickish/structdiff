@@ -1,4 +1,4 @@
-#![allow(unused_imports)]
+#![allow(unused_imports, clippy::type_complexity)]
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},

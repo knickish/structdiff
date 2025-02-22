@@ -16,11 +16,10 @@ mod parse;
 pub fn derive_struct_diff(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse::parse_data(input);
 
-    // ok we have an ident, hopefully it's a struct
     let ts = match &input {
         parse::Data::Struct(struct_) if struct_.named => derive_struct_diff_struct(struct_),
         parse::Data::Enum(enum_) => derive_struct_diff_enum(enum_),
-        _ => unimplemented!("Only structs are supported"),
+        _ => unimplemented!("Only structs and enums are supported"),
     };
 
     ts
