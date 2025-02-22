@@ -7,6 +7,7 @@ repository = "https://github.com/knickish/structdiff"
 description = """zero-dependency crate for generating and applying partial diffs between struct instances"""
 keywords      = ["delta-compression", "difference"]
 categories    = ["compression"]
+rust-version = "1.82.0"
 
 [dependencies]
 nanoserde           = { version = "^0.1.37", optional = true }

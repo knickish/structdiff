@@ -6,7 +6,7 @@ use alloc::string::String;
 use crate::parse::{Category, ConstValType, Enum, Generic, Struct, Type};
 #[cfg(feature = "generated_setters")]
 use crate::shared::{attrs_all_setters, attrs_setter};
-use crate::shared::{attrs_collection_type, attrs_recurse, attrs_skip};
+use crate::shared::{attrs_collection_type, attrs_expose, attrs_recurse, attrs_skip};
 use proc_macro::TokenStream;
 
 fn get_used_lifetimes(ty: &Type) -> Vec<String> {
@@ -108,8 +108,16 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
     #[cfg(feature = "generated_setters")]
     let mut setters_body = String::new();
 
-    let enum_name =
-        String::from("__".to_owned() + struct_.name.as_ref().unwrap().as_str() + "StructDiffEnum");
+    let exposed = attrs_expose(&struct_.attributes);
+
+    let enum_name = match exposed.clone() {
+        Some(Some(name)) => name,
+        Some(None) => String::from(struct_.name.as_ref().unwrap().to_string() + "StructDiffEnum"),
+        _ => String::from(
+            "__".to_owned() + struct_.name.as_ref().unwrap().as_str() + "StructDiffEnum",
+        ),
+    };
+
     let struct_generics_names_hash: HashSet<String> =
         struct_.generics.iter().map(|x| x.full()).collect();
 
@@ -1000,14 +1008,13 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
         ""
     };
 
+    let const_start = "#[allow(non_camel_case_types)]\nconst _: () = {";
+
     format!(
-        "#[allow(non_camel_case_types)]
-        const _: () = {{
-            use structdiff::collections::*;
+        "{non_exposed_const_start}
             {type_aliases}
             {ref_type_aliases}
             {nanoserde_hack}
-            
             #[allow(non_camel_case_types)]
             /// Generated type from StructDiff
             #[derive({owned_derives})]{serde_bounds}
@@ -1027,6 +1034,9 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
             {{
                 {diff_ref_enum_body}
             }}
+        {exposed_const_start}
+
+            
 
             impl{ref_enum_def_generics} Into<{enum_name}{owned_enum_impl_generics}> for {enum_name}Ref{ref_enum_impl_generics}
             where
@@ -1070,6 +1080,8 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
 
             {setters}
         }};",
+        non_exposed_const_start = if exposed.is_some() { "" } else { const_start },
+        exposed_const_start = if exposed.is_some() { const_start } else { "" },
         type_aliases = owned_type_aliases,
         ref_type_aliases = ref_type_aliases,
         nanoserde_hack = nanoserde_hack,
@@ -1253,7 +1265,14 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
     let mut type_aliases = String::new();
     let mut used_generics: Vec<&Generic> = Vec::new();
 
-    let enum_name = String::from("__".to_owned() + enum_.name.as_str() + "StructDiffEnum");
+    let exposed = attrs_expose(&enum_.attributes);
+
+    let enum_name = match exposed.clone() {
+        Some(Some(name)) => name,
+        Some(None) => String::from(enum_.name.clone() + "StructDiffEnum"),
+        _ => String::from("__".to_owned() + &enum_.name + "StructDiffEnum"),
+    };
+
     let ref_into_owned_body = format!(
         "Self::Replace(variant) => {}::Replace(variant.clone()),",
         &enum_name
@@ -1425,12 +1444,10 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
     #[cfg(not(feature = "serde"))]
     let serde_bound = "";
 
-    format!(
-        "const _: () = {{
-            use structdiff::collections::*;
-            {type_aliases}
-            {nanoserde_hack}
+    let const_start = "#[allow(non_camel_case_types)]\nconst _: () = {";
 
+    format!(
+        "{non_exposed_const_start}
             /// Generated type from StructDiff
             #[derive({owned_derives})]{serde_bounds}
             #[allow(non_camel_case_types)]
@@ -1450,6 +1467,10 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
             {{
                 Replace(&'__diff_target {struct_name}{struct_generics})
             }}
+        {exposed_const_start}
+
+            {type_aliases}
+            {nanoserde_hack}
 
             impl{ref_enum_def_generics} Into<{enum_name}{enum_impl_generics}> for {enum_name}Ref{ref_enum_impl_generics}
             where
@@ -1500,6 +1521,8 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
                 }}
             }}
         }};",
+        non_exposed_const_start = if exposed.is_some() { "" } else { const_start },
+        exposed_const_start = if exposed.is_some() { const_start } else { "" },
         type_aliases = type_aliases,
         nanoserde_hack = nanoserde_hack,
         owned_derives = owned_derives,

@@ -167,7 +167,7 @@ pub fn unordered_hashcmp<
         return Some(UnorderedMapLikeDiff(UnorderedMapLikeDiffInternal::Replace(
             current
                 .into_iter()
-                .flat_map(|(k, (v, count))| std::iter::repeat((k, v)).take(count))
+                .flat_map(|(k, (v, count))| std::iter::repeat_n((k, v), count))
                 .collect(),
         )));
     }
@@ -319,7 +319,7 @@ pub fn apply_unordered_hashdiffs<
     Box::new(
         list_hash
             .into_iter()
-            .flat_map(|(k, (v, count))| std::iter::repeat((k.clone(), v.clone())).take(count))
+            .flat_map(|(k, (v, count))| std::iter::repeat_n((k.clone(), v.clone()), count))
             .collect::<Vec<_>>()
             .into_iter(),
     )

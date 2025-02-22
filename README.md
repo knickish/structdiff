@@ -48,19 +48,22 @@ assert_ne!(diffed, second);
 For more examples take a look at [integration tests](/tests)
 
 ## Derive macro attributes
-- `#[difference(skip)]` - Do not consider this field when creating a diff
-- `#[difference(recurse)]` - Generate a StructDiff for this field when creating a diff
-- `#[difference(collection_strategy = {})]`
-    - `"ordered_array_like"` - Generates a minimal changeset for ordered, array-like collections of items which implement `PartialEq`. (uses levenshtein difference)
-    - `"unordered_array_like"` - Generates a minimal changeset for unordered, array-like collections of items which implement `Hash + Eq`.
-    - `"unordered_map_like"` - Generates a minimal changeset for unordered, map-like collections for which the key implements `Hash + Eq`.
-- `#[difference(map_equality = {})]` - Used with `unordered_map_like`
-    - `"key_only"` - only replace a key-value pair for which the key has changed
-    - `"key_and_value"` - replace a key-value pair if either the key or value has changed
-- `#[difference(setters)]` - Generate setters for all fields in the struct (used on struct)
-    - Example: for the `field1` of the `Example` struct used above, a function with the signature `set_field1_with_diff(&mut self, value: Option<usize>) -> Option<<Self as StructDiff>::Diff>` will be generated. Useful when a single field will be changed in a struct with many fields, as it saves the comparison of all other fields. 
-- `#[difference(setter)]` - Generate setters for this struct field (used on field)
-- `#[difference(setter_name = {})]` - Use this name instead of the default value when generating a setter for this field (used on field)
+- Field level
+    - `#[difference(skip)]` - Do not consider this field when creating a diff
+    - `#[difference(recurse)]` - Generate a StructDiff for this field when creating a diff
+    - `#[difference(collection_strategy = {})]`
+        - `"ordered_array_like"` - Generates a minimal changeset for ordered, array-like collections of items which implement `PartialEq`. (uses levenshtein difference)
+        - `"unordered_array_like"` - Generates a minimal changeset for unordered, array-like collections of items which implement `Hash + Eq`.
+        - `"unordered_map_like"` - Generates a minimal changeset for unordered, map-like collections for which the key implements `Hash + Eq`.
+    - `#[difference(map_equality = {})]` - Used with `unordered_map_like`
+        - `"key_only"` - only replace a key-value pair for which the key has changed
+        - `"key_and_value"` - replace a key-value pair if either the key or value has changed
+    - `#[difference(setter)]` - Generate setters for this struct field
+    - `#[difference(setter_name = {})]` - Use this name instead of the default value when generating a setter for this field (used on field)
+- Struct Level
+    - `#[difference(setters)]` - Generate setters for all fields in the struct 
+        - Example: for the `field1` of the `Example` struct used above, a function with the signature `set_field1_with_diff(&mut self, value: Option<usize>) -> Option<<Self as StructDiff>::Diff>` will be generated. Useful when a single field will be changed in a struct with many fields, as it saves the comparison of all other fields. 
+    - `#[difference(expose)]`/`#[difference(expose = "MyDiffTypeName")]` - expose the generated difference type (optionally, with the specified name)
 
 ## Optional features
 - [`nanoserde`, `serde`] - Serialization of `Difference` derived associated types. Allows diffs to easily be sent over network.

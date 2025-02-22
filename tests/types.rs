@@ -145,11 +145,7 @@ mod generators {
 
     pub(super) fn rand_bool(rng: &mut WyRand) -> bool {
         let base = rng.generate::<u8>() as usize;
-        if base % 2 == 0 {
-            true
-        } else {
-            false
-        }
+        base % 2 == 0
     }
 
     pub(super) fn rand_string(rng: &mut WyRand) -> String {

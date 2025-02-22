@@ -166,7 +166,7 @@ pub fn unordered_hashcmp<
             UnorderedArrayLikeDiffInternal::Replace(
                 current
                     .into_iter()
-                    .flat_map(|(k, v)| std::iter::repeat(k).take(v))
+                    .flat_map(|(k, v)| std::iter::repeat_n(k, v))
                     .collect(),
             ),
         ));
@@ -333,7 +333,7 @@ where
     Box::new(
         list_hash
             .into_iter()
-            .flat_map(|(k, v)| std::iter::repeat(k).take(v)),
+            .flat_map(|(k, v)| std::iter::repeat_n(k, v)),
     )
 }
 
