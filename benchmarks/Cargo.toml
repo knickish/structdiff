@@ -36,7 +36,3 @@ harness = false
 [[bench]]
 name = "large"
 harness = false
-
-[[bench]]
-name = "rope"
-harness = false
