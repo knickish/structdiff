@@ -1,6 +1,6 @@
 [package]
 name = "structdiff"
-version = "0.7.1"
+version = "0.7.2"
 edition = "2021"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/knickish/structdiff"
@@ -22,12 +22,12 @@ structdiff-derive   = { path = "derive", version = "=0.7.1" }
 "generated_setters" = ["structdiff-derive/generated_setters"]
 "rustc_hash"    = ["dep:rustc-hash"]
 "debug_asserts" = []
-"__rope_benchmarks" = []
 
 [dev-dependencies]
 bincode             = "1.3.3"
 assert_unordered    = "0.3.5"
-nanorand    = { version = "0.7.0" } 
+nanorand            = "0.7.0"
+pretty_assertions   = "1.4.1"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(unused)'] }
