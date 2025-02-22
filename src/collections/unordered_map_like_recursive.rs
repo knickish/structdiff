@@ -342,8 +342,8 @@ mod nanoserde_impls {
 
     impl<K, V> SerBin for UnorderedMapLikeRecursiveChangeRef<'_, K, V>
     where
-        K: SerBin + PartialEq + Clone + DeBin,
-        V: SerBin + PartialEq + Clone + DeBin + StructDiff,
+        K: SerBin + PartialEq + Clone,
+        V: SerBin + PartialEq + Clone + StructDiff,
     {
         fn ser_bin(&self, output: &mut Vec<u8>) {
             match self {
@@ -386,8 +386,8 @@ mod nanoserde_impls {
 
     impl<K, V> SerBin for UnorderedMapLikeRecursiveDiffRef<'_, K, V>
     where
-        K: SerBin + PartialEq + Clone + DeBin,
-        V: SerBin + PartialEq + Clone + DeBin + StructDiff,
+        K: SerBin + PartialEq + Clone,
+        V: SerBin + PartialEq + Clone + StructDiff,
     {
         fn ser_bin(&self, output: &mut Vec<u8>) {
             match &self.0 {
@@ -409,8 +409,8 @@ mod nanoserde_impls {
 
     impl<K, V> SerBin for &UnorderedMapLikeRecursiveDiffRef<'_, K, V>
     where
-        K: SerBin + PartialEq + Clone + DeBin,
-        V: SerBin + PartialEq + Clone + DeBin + StructDiff,
+        K: SerBin + PartialEq + Clone,
+        V: SerBin + PartialEq + Clone + StructDiff,
     {
         #[inline(always)]
         fn ser_bin(&self, output: &mut Vec<u8>) {
