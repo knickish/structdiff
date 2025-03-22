@@ -10,7 +10,7 @@ categories    = ["compression"]
 rust-version = "1.82.0"
 
 [dependencies]
-nanoserde           = { version = "^0.1.37", optional = true }
+nanoserde           = { version = "^0.2.0", optional = true }
 rustc-hash          = { version = "1.1.0", optional = true }
 serde               = { version = "^1.0.0", optional = true, features = ["derive"] }
 structdiff-derive   = { path = "derive", version = "=0.7.3" }

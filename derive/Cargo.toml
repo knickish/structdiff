@@ -10,7 +10,7 @@ license = "MIT"
 proc-macro = true
 
 [dependencies]
-nanoserde           = { version = "^0.1.37", optional = true }
+nanoserde           = { version = "^0.2.0", optional = true }
 serde               = { version = "^1.0.0", optional = true, features = ["derive"] }
 
 [features]
