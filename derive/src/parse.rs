@@ -1574,7 +1574,8 @@ pub fn parse_data(input: TokenStream) -> Data {
             res = Data::Struct(struct_);
         }
         "enum" => {
-            let enum_ = next_enum(&mut source);
+            let mut enum_ = next_enum(&mut source);
+            enum_.attributes = attributes;
             res = Data::Enum(enum_);
         }
         "union" => unimplemented!("Unions are not supported"),

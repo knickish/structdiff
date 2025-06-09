@@ -70,3 +70,22 @@ fn test_expose_rename() {
         }
     }
 }
+
+#[test]
+fn test_expose_enum() {
+    #[derive(Debug, Clone, PartialEq, Difference)]
+    #[difference(expose)]
+    pub enum Test {
+        A,
+        B(u32),
+    }
+
+    let first = Test::A;
+    let second = Test::B(1);
+
+    for diff in first.diff(&second) {
+        match diff {
+            TestStructDiffEnum::Replace(_) => {}
+        }
+    }
+}
