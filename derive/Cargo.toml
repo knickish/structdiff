@@ -1,6 +1,6 @@
 [package]
 name = "structdiff-derive"
-version = "0.7.3"
+version = "0.7.4"
 authors = ["Makepad <info@makepad.nl>", "Fedor <not.fl3@gmail.com>", "Kirk <knickish@gmail.com"]
 edition = "2021"
 description = "derive macro library for structdiff"

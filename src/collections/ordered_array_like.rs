@@ -223,11 +223,7 @@ fn create_last_change_row<'src, 'target: 'src, T: Clone + PartialEq + 'target>(
     debug_assert_eq!(
         target_start <= target_end,
         source_start <= source_end,
-        "\ntarget start: {}\ntarget end: {}\nsource start: {}\nsource end: {}",
-        target_start,
-        target_end,
-        source_start,
-        source_end
+        "\ntarget start: {target_start}\ntarget end: {target_end}\nsource start: {source_start}\nsource end: {source_end}",
     );
 
     let mut table = std::array::from_fn::<_, 2, _>(|_| {
