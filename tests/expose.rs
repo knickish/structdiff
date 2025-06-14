@@ -74,6 +74,8 @@ fn test_expose_rename() {
 #[test]
 fn test_expose_enum() {
     #[derive(Debug, Clone, PartialEq, Difference)]
+    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "nanoserde", derive(SerBin, DeBin))]
     #[difference(expose)]
     pub enum Test {
         A,
