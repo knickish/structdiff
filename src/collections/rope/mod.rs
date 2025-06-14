@@ -1,5 +1,9 @@
 use std::{
-    cmp::Ordering::{Equal, Greater}, collections::VecDeque, fmt::Debug, num::NonZeroUsize, ops::{Index, IndexMut, Neg}
+    cmp::Ordering::{Equal, Greater},
+    collections::VecDeque,
+    fmt::Debug,
+    num::NonZeroUsize,
+    ops::{Index, IndexMut, Neg},
 };
 
 /// helper type for [`NodesWithCount::slot_mut_internal`] and [`NodesWithCount::remove_internal`]
@@ -51,7 +55,6 @@ impl<T> NodesWithCount<T> {
     fn shallow_len(&self) -> usize {
         self.count.map(NonZeroUsize::get).unwrap_or_default()
     }
-
 
     fn pop_front(&mut self) -> Option<T> {
         let node_mut = self
@@ -243,9 +246,7 @@ impl<T> NodesWithCount<T> {
 
         // it's neither a front nor a back, find the internal slot that holds the item at the relevent index and either push it if
         // it's at front/back of its vec, or replace the Node::Single with a Node::Multiple
-        let (nodes, slot, ..) = self
-            .slot_mut_internal(idx, None, Some(1))
-            .unwrap();
+        let (nodes, slot, ..) = self.slot_mut_internal(idx, None, Some(1)).unwrap();
 
         // check for special cases
         if slot == 0 {
