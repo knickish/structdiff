@@ -1,12 +1,10 @@
-#![allow(unused_imports, clippy::type_complexity)]
-
+#![allow(clippy::type_complexity)]
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt::Debug,
     num::Wrapping,
 };
-
-use structdiff::{Difference, StructDiff};
+use structdiff::Difference;
 
 // Trying to come up with all the edge cases that might be relevant
 #[allow(dead_code)]

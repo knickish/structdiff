@@ -1,21 +1,10 @@
-#![allow(unused_imports)]
-
-use assert_unordered::{assert_eq_unordered, assert_eq_unordered_sort};
-
-use std::f64::consts::PI;
-use std::hash::Hash;
-use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet, LinkedList},
-    fmt::Debug,
-    num::Wrapping,
-};
-use structdiff::{Difference, StructDiff};
-
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
-
 #[cfg(feature = "nanoserde")]
 use nanoserde::{DeBin, SerBin};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+use std::f64::consts::PI;
+use std::fmt::Debug;
+use structdiff::{Difference, StructDiff};
 
 #[test]
 fn test_expose() {

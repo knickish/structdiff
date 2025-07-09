@@ -1,12 +1,11 @@
-use std::collections::BTreeMap;
-
 use generators::{fill, rand_bool, rand_string};
 use nanorand::{Rng, WyRand};
 #[cfg(feature = "nanoserde")]
 use nanoserde::{DeBin, SerBin};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use structdiff::{Difference, StructDiff};
+use std::collections::BTreeMap;
+use structdiff::Difference;
 
 pub trait RandValue
 where
