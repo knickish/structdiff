@@ -5,7 +5,8 @@ use nanoserde::{DeBin, SerBin};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use structdiff::Difference;
+#[allow(unused_imports)]
+use structdiff::{Difference, StructDiff};
 
 pub trait RandValue
 where

@@ -4,7 +4,8 @@ mod expose;
 mod types;
 
 use self::types::{RandValue, Test, TestEnum, TestSkip};
-use assert_unordered::assert_eq_unordered;
+#[allow(unused_imports)]
+use assert_unordered::{assert_eq_unordered, assert_eq_unordered_sort};
 use std::f32::consts::PI;
 use std::hash::Hash;
 use std::{
