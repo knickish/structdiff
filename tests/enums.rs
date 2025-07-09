@@ -1,12 +1,11 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-#[allow(unused_imports)]
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fmt::Debug,
     num::Wrapping,
 };
-use structdiff::{Difference, StructDiff};
+use structdiff::Difference;
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Difference, Default)]

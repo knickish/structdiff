@@ -5,30 +5,30 @@ edition = "2021"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/knickish/structdiff"
 description = """zero-dependency crate for generating and applying partial diffs between struct instances"""
-keywords      = ["delta-compression", "difference"]
-categories    = ["compression"]
+keywords = ["delta-compression", "difference"]
+categories = ["compression"]
 rust-version = "1.82.0"
 
 [dependencies]
-nanoserde           = { version = "^0.1.37", optional = true }
-rustc-hash          = { version = "1.1.0", optional = true }
-serde               = { version = "^1.0.0", optional = true, features = ["derive"] }
-structdiff-derive   = { path = "derive", version = "=0.7.4" }
+nanoserde = { version = "^0.1.37", optional = true }
+rustc-hash = { version = "1.1.0", optional = true }
+serde = { version = "^1.0.0", optional = true, features = ["derive"] }
+structdiff-derive = { path = "derive", version = "=0.7.4" }
 
 [features]
-"default"       = []
-"nanoserde"     = ["dep:nanoserde", "structdiff-derive/nanoserde"]
-"serde"         = ["dep:serde", "structdiff-derive/serde"]
-"debug_diffs"   = ["structdiff-derive/debug_diffs"]
+"default" = []
+"nanoserde" = ["dep:nanoserde", "structdiff-derive/nanoserde"]
+"serde" = ["dep:serde", "structdiff-derive/serde"]
+"debug_diffs" = ["structdiff-derive/debug_diffs"]
 "generated_setters" = ["structdiff-derive/generated_setters"]
-"rustc_hash"    = ["dep:rustc-hash"]
+"rustc_hash" = ["dep:rustc-hash"]
 "debug_asserts" = []
 
 [dev-dependencies]
-bincode             = "1.3.3"
-assert_unordered    = "0.3.5"
-nanorand            = "0.7.0"
-pretty_assertions   = "1.4.1"
+bincode = "1.3.3"
+assert_unordered = "0.3.5"
+nanorand = "0.7.0"
+pretty_assertions = "1.4.1"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(unused)'] }

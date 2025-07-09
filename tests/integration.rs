@@ -1,18 +1,16 @@
-#![allow(unused_imports)]
-
 mod derives;
 mod enums;
 mod expose;
 mod types;
-use assert_unordered::{assert_eq_unordered, assert_eq_unordered_sort};
-pub use types::{RandValue, Test, TestEnum, TestSkip};
 
+use self::types::{RandValue, Test, TestEnum, TestSkip};
+#[allow(unused_imports)]
+use assert_unordered::{assert_eq_unordered, assert_eq_unordered_sort};
 use std::f32::consts::PI;
 use std::hash::Hash;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet, LinkedList},
+    collections::{BTreeSet, HashMap, HashSet, LinkedList},
     fmt::Debug,
-    num::Wrapping,
 };
 use structdiff::{Difference, StructDiff};
 
