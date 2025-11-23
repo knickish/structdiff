@@ -110,13 +110,20 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
 
     let exposed = attrs_expose(&struct_.attributes);
 
-    let enum_name = match exposed.clone() {
+    // need a separate binding to the origin struct name for use in format_args
+    let base_name = match exposed {
         Some(Some(name)) => name,
-        Some(None) => struct_.name.as_ref().unwrap().to_string() + "StructDiffEnum",
-        _ => "__".to_owned() + struct_.name.as_ref().unwrap().as_str() + "StructDiffEnum",
+        Some(None) => struct_.name.as_ref().unwrap().as_str(),
+        _ => struct_.name.as_ref().unwrap().as_str(),
     };
 
-    let struct_generics_names_hash: HashSet<String> =
+    let enum_name = match exposed {
+        Some(Some(_)) => format_args!("{base_name}"),
+        Some(None) => format_args!("{}StructDiffEnum", base_name),
+        _ => format_args!("__{}StructDiffEnum", base_name),
+    };
+
+    let struct_generics_names_hash: HashSet<&str> =
         struct_.generics.iter().map(|x| x.full()).collect();
 
     #[cfg(feature = "generated_setters")]
@@ -131,10 +138,10 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
             let field_name = field.field_name.as_ref().unwrap();
             used_generics.extend(struct_.generics.iter().filter(|x| x.full() == field.ty.ident.path(&field.ty, false)));
 
-            let to_add = struct_.generics.iter().filter(|x| field.ty.wraps().iter().any(|wrapped_type| &x.full() == wrapped_type));
+            let to_add = struct_.generics.iter().filter(|x| field.ty.wraps().iter().any(|wrapped_type| x.full() == wrapped_type));
             used_generics.extend(to_add);
 
-            used_generics.extend(get_used_lifetimes(&field.ty).into_iter().filter_map(|x| match struct_generics_names_hash.contains(&x) {
+            used_generics.extend(get_used_lifetimes(&field.ty).into_iter().filter_map(|x| match struct_generics_names_hash.contains(x.as_str()) {
                 true => Some(struct_.generics.iter().find(|generic| generic.full() == x ).unwrap()),
                 false => None,
             }));
@@ -875,7 +882,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
     let nanoserde_hack = String::from("\nuse nanoserde::*;");
 
     let used_generics = {
-        let mut added: HashSet<String> = HashSet::new();
+        let mut added: HashSet<&str> = HashSet::new();
         let mut ret = Vec::new();
         for maybe_used in struct_.generics.iter() {
             if added.insert(maybe_used.full()) && used_generics.contains(&maybe_used) {
@@ -901,7 +908,9 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
         let start = "\n#[serde(bound = \"";
         let mid = used_generics
             .iter()
-            .filter(|gen| !matches!(gen, Generic::Lifetime { .. } | Generic::Const { .. }))
+            .filter(|gen_type| {
+                !matches!(gen_type, Generic::Lifetime { .. } | Generic::Const { .. })
+            })
             .map(|x| {
                 format!(
                     "{}: serde::Serialize + serde::de::DeserializeOwned",
@@ -932,7 +941,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                     struct_
                         .generics
                         .iter()
-                        .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
+                        .filter(|gen_type| !matches!(gen_type, Generic::WhereBounded { .. }))
                         .map(Generic::ident_with_const)
                         .collect::<Vec<_>>()
                         .join(", "),
@@ -943,19 +952,19 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                     struct_
                         .generics
                         .iter()
-                        .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
+                        .filter(|gen_type| !matches!(gen_type, Generic::WhereBounded { .. }))
                         .map(Generic::ident_only)
                         .collect::<Vec<_>>()
                         .join(", "),
                     struct_
                         .generics
                         .iter()
-                        .filter(|gen| !matches!(
-                            gen,
+                        .filter(|gen_type| !matches!(
+                            gen_type,
                             Generic::Const { .. } | Generic::WhereBounded { .. }
                         ))
-                        .map(|gen| Generic::full_with_const(
-                            gen,
+                        .map(|gen_type| Generic::full_with_const(
+                            gen_type,
                             get_used_generic_bounds(),
                             &[],
                             true
@@ -966,8 +975,8 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
                             struct_
                                 .generics
                                 .iter()
-                                .filter(|gen| matches!(gen, Generic::WhereBounded { .. }))
-                                .map(|gen| Generic::full_with_const(gen, &[], &[], true))
+                                .filter(|gen_type| matches!(gen_type, Generic::WhereBounded { .. }))
+                                .map(|gen_type| Generic::full_with_const(gen_type, &[], &[], true))
                                 .collect::<Vec<_>>()
                                 .into_iter()
                         )
@@ -1073,7 +1082,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
             "<{}>",
             used_generics
                 .iter()
-                .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
+                .filter(|gen_type| !matches!(gen_type, Generic::WhereBounded { .. }))
                 .map(Generic::ident_with_const)
                 .collect::<Vec<_>>()
                 .join(", ")
@@ -1083,7 +1092,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
             std::iter::once(String::from("'__diff_target")).chain(
                 used_generics
                     .iter()
-                    .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
+                    .filter(|gen_type| !matches!(gen_type, Generic::WhereBounded { .. }))
                     .map(Generic::ident_with_const))
                 .collect::<Vec<_>>()
                 .join(", ")
@@ -1092,12 +1101,12 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
             "{}",
             used_generics
                 .iter()
-                .filter(|gen| !matches!(
-                    gen,
+                .filter(|gen_type| !matches!(
+                    gen_type,
                     Generic::WhereBounded { .. } | Generic::Const { .. }
                 ))
                 .filter(|g| Generic::has_where_bounds(g, false, true))
-                .map(|gen| Generic::full_with_const(gen, get_used_generic_bounds(), &[], true))
+                .map(|gen_type| Generic::full_with_const(gen_type, get_used_generic_bounds(), &[], true))
                 .collect::<Vec<_>>()
                 .join(",\n")
         ),
@@ -1105,12 +1114,12 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
             "{}",
             used_generics
                 .iter()
-                .filter(|gen| !matches!(
-                    gen,
+                .filter(|gen_type| !matches!(
+                    gen_type,
                     Generic::WhereBounded { .. } | Generic::Const { .. }
                 ))
                 .filter(|g| Generic::has_where_bounds(g, true, true))
-                .map(|gen| Generic::full_with_const(gen, get_used_generic_bounds_ref(), &["\'__diff_target"], true))
+                .map(|gen_type| Generic::full_with_const(gen_type, get_used_generic_bounds_ref(), &["\'__diff_target"], true))
                 .chain(std::iter::once(String::from("Self: \'__diff_target")))
                 .collect::<Vec<_>>()
                 .join(",\n")
@@ -1119,12 +1128,12 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
             "{}",
             used_generics
                 .iter()
-                .filter(|gen| !matches!(
-                    gen,
+                .filter(|gen_type| !matches!(
+                    gen_type,
                     Generic::WhereBounded { .. } | Generic::Const { .. }
                 ))
                 .filter(|g| Generic::has_where_bounds(g, true, true))
-                .map(|gen| Generic::full_with_const(gen, get_used_generic_bounds(), &["\'__diff_target"], true))
+                .map(|gen_type| Generic::full_with_const(gen_type, get_used_generic_bounds(), &["\'__diff_target"], true))
                 .collect::<Vec<_>>()
                 .join(",\n")
         ),
@@ -1133,12 +1142,12 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
             struct_
             .generics
                 .iter()
-                .filter(|gen| !matches!(
-                    gen,
+                .filter(|gen_type| !matches!(
+                    gen_type,
                     Generic::WhereBounded { .. } | Generic::Const { .. }
                 ))
                 .filter(|g| Generic::has_where_bounds(g, true, true))
-                .map(|gen| Generic::full_with_const(gen, &[], &["\'__diff_target"], true))
+                .map(|gen_type| Generic::full_with_const(gen_type, &[], &["\'__diff_target"], true))
                 .collect::<Vec<_>>()
                 .join(",\n")
         ),
@@ -1147,7 +1156,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
             struct_
                 .generics
                 .iter()
-                .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
+                .filter(|gen_type| !matches!(gen_type, Generic::WhereBounded { .. }))
                 .map(Generic::ident_with_const)
                 .collect::<Vec<_>>()
                 .join(", ")
@@ -1157,7 +1166,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
             struct_
                 .generics
                 .iter()
-                .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
+                .filter(|gen_type| !matches!(gen_type, Generic::WhereBounded { .. }))
                 .map(Generic::ident_only)
                 .collect::<Vec<_>>()
                 .join(", ")
@@ -1167,21 +1176,21 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
             struct_
                 .generics
                 .iter()
-                .filter(|gen| !matches!(gen, Generic::Const { .. } | Generic::WhereBounded { .. }))
+                .filter(|gen_type| !matches!(gen_type, Generic::Const { .. } | Generic::WhereBounded { .. }))
                 .filter(|g| Generic::has_where_bounds(g, false, true))
-                .map(|gen| Generic::full_with_const(gen, get_used_generic_bounds(), &[], true))
+                .map(|gen_type| Generic::full_with_const(gen_type, get_used_generic_bounds(), &[], true))
                 .collect::<Vec<_>>().into_iter().chain(struct_
                     .generics
                     .iter()
-                    .filter(|gen| matches!(gen, Generic::WhereBounded { .. }))
-                    .map(|gen| Generic::full_with_const(gen, &[], &[], true)).collect::<Vec<_>>().into_iter()).collect::<Vec<_>>()
+                    .filter(|gen_type| matches!(gen_type, Generic::WhereBounded { .. }))
+                    .map(|gen_type| Generic::full_with_const(gen_type, &[], &[], true)).collect::<Vec<_>>().into_iter()).collect::<Vec<_>>()
                 .join(",\n")
         ),
         owned_enum_impl_generics = format_args!(
             "<{}>",
             used_generics
                 .iter()
-                .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
+                .filter(|gen_type| !matches!(gen_type, Generic::WhereBounded { .. }))
                 .map(Generic::ident_only)
                 .collect::<Vec<_>>()
                 .join(", ")
@@ -1191,7 +1200,7 @@ pub(crate) fn derive_struct_diff_struct(struct_: &Struct) -> TokenStream {
             std::iter::once(String::from("'__diff_target")).chain(
                 used_generics
                     .iter()
-                    .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
+                    .filter(|gen_type| !matches!(gen_type, Generic::WhereBounded { .. }))
                     .map(Generic::ident_only))
                 .collect::<Vec<_>>()
                 .join(", ")
@@ -1241,17 +1250,24 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
 
     let exposed = attrs_expose(&enum_.attributes);
 
-    let enum_name = match exposed.clone() {
+    // need a separate binding to the origin enum name for use in format_args
+    let base_name = match exposed {
         Some(Some(name)) => name,
-        Some(None) => enum_.name.clone() + "StructDiffEnum",
-        _ => "__".to_owned() + &enum_.name + "StructDiffEnum",
+        Some(None) => enum_.name.as_str(),
+        _ => enum_.name.as_str(),
+    };
+
+    let enum_name = match exposed {
+        Some(Some(_)) => format_args!("{base_name}"),
+        Some(None) => format_args!("{}StructDiffEnum", base_name),
+        _ => format_args!("__{}StructDiffEnum", base_name),
     };
 
     let ref_into_owned_body = format!(
         "Self::Replace(variant) => {}::Replace(variant.clone()),",
         &enum_name
     );
-    let struct_generics_names_hash: HashSet<String> =
+    let struct_generics_names_hash: HashSet<&str> =
         enum_.generics.iter().map(|x| x.full()).collect();
 
     if enum_.variants.iter().any(|x| attrs_skip(&x.attributes)) {
@@ -1271,12 +1287,12 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
         let to_add = enum_.generics.iter().filter(|x| {
             ty.wraps()
                 .iter()
-                .any(|wrapped_type| &x.full() == wrapped_type)
+                .any(|wrapped_type| x.full() == wrapped_type)
         });
         used_generics.extend(to_add);
 
         used_generics.extend(get_used_lifetimes(ty).into_iter().filter_map(|x| {
-            match struct_generics_names_hash.contains(&x) {
+            match struct_generics_names_hash.contains(x.as_str()) {
                 true => Some(
                     enum_
                         .generics
@@ -1402,7 +1418,9 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
         let start = "\n#[serde(bound = \"";
         let mid = used_generics
             .iter()
-            .filter(|gen| !matches!(gen, Generic::Lifetime { .. } | Generic::Const { .. }))
+            .filter(|gen_type| {
+                !matches!(gen_type, Generic::Lifetime { .. } | Generic::Const { .. })
+            })
             .map(|x| {
                 format!(
                     "{}: serde::Serialize + serde::de::DeserializeOwned",
@@ -1511,7 +1529,7 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
             enum_
                 .generics
                 .iter()
-                .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
+                .filter(|gen_type| !matches!(gen_type, Generic::WhereBounded { .. }))
                 .map(Generic::ident_with_const)
                 .collect::<Vec<_>>()
                 .join(", ")
@@ -1522,7 +1540,7 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
                 enum_
                 .generics
                     .iter()
-                    .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
+                    .filter(|gen_type| !matches!(gen_type, Generic::WhereBounded { .. }))
                     .map(Generic::ident_with_const))
                 .collect::<Vec<_>>()
                 .join(", ")
@@ -1532,12 +1550,12 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
             enum_
                 .generics
                 .iter()
-                .filter(|gen| !matches!(
-                    gen,
+                .filter(|gen_type| !matches!(
+                    gen_type,
                      Generic::Const { .. }
                 ))
                 .filter(|g| Generic::has_where_bounds(g, false, true))
-                .map(|gen| Generic::full_with_const(gen, get_used_generic_bounds(), &[], true))
+                .map(|gen_type| Generic::full_with_const(gen_type, get_used_generic_bounds(), &[], true))
                 .collect::<Vec<_>>()
                 .join(",\n")
         ),
@@ -1546,12 +1564,12 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
             enum_
                 .generics
                 .iter()
-                .filter(|gen| !matches!(
-                    gen,
+                .filter(|gen_type| !matches!(
+                    gen_type,
                     Generic::Const { .. }
                 ))
                 .filter(|g| Generic::has_where_bounds(g, true, true))
-                .map(|gen| Generic::full_with_const(gen, get_used_generic_bounds_ref(), &["\'__diff_target"], true))
+                .map(|gen_type| Generic::full_with_const(gen_type, get_used_generic_bounds_ref(), &["\'__diff_target"], true))
                 .chain(std::iter::once(String::from("Self: '__diff_target")))
                 .collect::<Vec<_>>()
                 .join(",\n")
@@ -1561,12 +1579,12 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
             enum_
                 .generics
                 .iter()
-                .filter(|gen| !matches!(
-                    gen,
+                .filter(|gen_type| !matches!(
+                    gen_type,
                     Generic::Const { .. }
                 ))
                 .filter(|g| Generic::has_where_bounds(g, true, true))
-                .map(|gen| Generic::full_with_const(gen, get_used_generic_bounds_ref(), &["\'__diff_target"], true))
+                .map(|gen_type| Generic::full_with_const(gen_type, get_used_generic_bounds_ref(), &["\'__diff_target"], true))
                 .collect::<Vec<_>>()
                 .join(",\n")
         ),
@@ -1575,12 +1593,12 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
             enum_
                 .generics
                 .iter()
-                .filter(|gen| !matches!(
-                    gen,
+                .filter(|gen_type| !matches!(
+                    gen_type,
                     Generic::WhereBounded { .. } | Generic::Const { .. }
                 ))
                 .filter(|g| Generic::has_where_bounds(g, true, true))
-                .map(|gen| Generic::full_with_const(gen, &[], &["\'__diff_target"], true))
+                .map(|gen_type| Generic::full_with_const(gen_type, &[], &["\'__diff_target"], true))
                 .collect::<Vec<_>>()
                 .join(",\n")
         ),
@@ -1589,7 +1607,7 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
             enum_
                 .generics
                 .iter()
-                .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
+                .filter(|gen_type| !matches!(gen_type, Generic::WhereBounded { .. }))
                 .map(Generic::ident_with_const)
                 .collect::<Vec<_>>()
                 .join(", ")
@@ -1599,7 +1617,7 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
             enum_
                 .generics
                 .iter()
-                .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
+                .filter(|gen_type| !matches!(gen_type, Generic::WhereBounded { .. }))
                 .map(Generic::ident_only)
                 .collect::<Vec<_>>()
                 .join(", ")
@@ -1609,13 +1627,13 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
             enum_
                 .generics
                 .iter()
-                .filter(|gen| !matches!(gen, Generic::Const { .. } | Generic::WhereBounded { .. }))
-                .map(|gen| Generic::full_with_const(gen, get_used_generic_bounds(), &[],true))
+                .filter(|gen_type| !matches!(gen_type, Generic::Const { .. } | Generic::WhereBounded { .. }))
+                .map(|gen_type| Generic::full_with_const(gen_type, get_used_generic_bounds(), &[],true))
                 .collect::<Vec<_>>().into_iter().chain(enum_
                     .generics
                     .iter()
-                    .filter(|gen| matches!(gen, Generic::WhereBounded { .. }))
-                    .map(|gen| Generic::full_with_const(gen, &[], &[], true)).collect::<Vec<_>>().into_iter()).collect::<Vec<_>>()
+                    .filter(|gen_type| matches!(gen_type, Generic::WhereBounded { .. }))
+                    .map(|gen_type| Generic::full_with_const(gen_type, &[], &[], true)).collect::<Vec<_>>().into_iter()).collect::<Vec<_>>()
                 .join(",\n")
         ),
         enum_impl_generics = format_args!(
@@ -1623,7 +1641,7 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
             enum_
                 .generics
                 .iter()
-                .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
+                .filter(|gen_type| !matches!(gen_type, Generic::WhereBounded { .. }))
                 .map(Generic::ident_only)
                 .collect::<Vec<_>>()
                 .join(", ")
@@ -1634,7 +1652,7 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
                 enum_
                 .generics
                     .iter()
-                    .filter(|gen| !matches!(gen, Generic::WhereBounded { .. }))
+                    .filter(|gen_type| !matches!(gen_type, Generic::WhereBounded { .. }))
                     .map(Generic::ident_only))
                 .collect::<Vec<_>>()
                 .join(", ")

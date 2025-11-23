@@ -6,6 +6,7 @@ use nanorand::{Rng, WyRand};
 use nanoserde::{DeBin, SerBin};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg_attr(not(feature = "generated_setters"), expect(unused_imports))]
 use structdiff::{Difference, StructDiff};
 
 pub trait RandValue
@@ -96,6 +97,7 @@ impl RandValue for TestEnum {
 
 #[derive(Difference, Default, PartialEq, Debug, Clone)]
 #[difference(setters)]
+#[allow(unused)]
 pub struct TestSetters {
     #[difference(setter_name = "testing123", recurse)]
     pub f0: Test,

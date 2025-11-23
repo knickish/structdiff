@@ -30,7 +30,7 @@ pub struct TestDeriveAll<
     [i32; N]: Default,
     [B; N]: Default,
     dyn Fn(&B): PartialEq + Clone + core::fmt::Debug,
-    (dyn core::fmt::Debug + Send + 'static): Debug,
+    dyn core::fmt::Debug + Send + 'static: Debug,
 {
     f1: (),
     f2: [A; N],

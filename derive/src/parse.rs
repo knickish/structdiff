@@ -173,23 +173,23 @@ impl Data {
 }
 
 impl Generic {
-    pub fn full(&self) -> String {
+    pub fn full(&self) -> &str {
         match &self {
-            Generic::Const { name, .. } => name.clone(),
-            Generic::Regular { name, .. } => name.clone(),
-            Generic::Lifetime { name, .. } => name.clone(),
-            Generic::WhereBounded { name, .. } => name.clone(),
+            Generic::Const { name, .. } => name,
+            Generic::Regular { name, .. } => name,
+            Generic::Lifetime { name, .. } => name,
+            Generic::WhereBounded { name, .. } => name,
         }
     }
 
-    fn lifetime_prefix(&self) -> &str {
+    fn lifetime_prefix(&self) -> &'static str {
         match &self {
             Generic::Lifetime { .. } => "\'",
             _ => "",
         }
     }
 
-    fn const_prefix(&self) -> &str {
+    fn const_prefix(&self) -> &'static str {
         match &self {
             Generic::Const { .. } => "const ",
             _ => "",
@@ -1421,7 +1421,7 @@ fn get_all_bounds<T: Iterator<Item = TokenTree> + Clone>(source: &mut Peekable<T
     // let mut generic_bounds = Vec::new();
     // let mut in_type = true;
     while let Some(gen) = next_generic(source) {
-        if already.insert(gen.full()) {
+        if already.insert(gen.full().to_owned()) {
             ret.push(gen);
         } else {
             match (
@@ -1453,7 +1453,7 @@ fn get_all_bounds<T: Iterator<Item = TokenTree> + Clone>(source: &mut Peekable<T
                     panic!("mismatched generic types")
                 }
             }
-        }
+        };
         let Some(_) = next_exact_punct(source, ",") else {
             break;
         };
@@ -1470,7 +1470,7 @@ fn get_all_bounds<T: Iterator<Item = TokenTree> + Clone>(source: &mut Peekable<T
         }
 
         while let Some(gen) = next_generic(source) {
-            if already.insert(gen.full()) {
+            if already.insert(gen.full().to_owned()) {
                 let gen = match gen {
                     Generic::Regular { name, bounds, .. } => Generic::WhereBounded { name, bounds },
                     where_bounded @ Generic::WhereBounded { .. } => where_bounded,
