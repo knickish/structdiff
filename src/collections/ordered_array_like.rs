@@ -174,6 +174,7 @@ fn create_full_change_table<T: PartialEq>(
         entry[0] = ChangeInternal::Insert(i * INSERT_COST);
     }
 
+    #[allow(clippy::needless_range_loop)]
     for j in 0..=source.len() {
         table[0][j] = ChangeInternal::Delete(j * DELETE_COST)
     }

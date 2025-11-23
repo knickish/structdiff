@@ -23,7 +23,7 @@ pub enum CollectionStrategy {
 }
 
 #[cfg(feature = "generated_setters")]
-pub fn attrs_setter(attributes: &[crate::parse::Attribute]) -> (bool, bool, Option<String>) {
+pub fn attrs_setter(attributes: &[crate::parse::Attribute]) -> (bool, bool, Option<&str>) {
     let skip = attributes
         .iter()
         .any(|attr| attr.tokens.len() == 1 && attr.tokens[0] == "skip_setter");
@@ -33,7 +33,7 @@ pub fn attrs_setter(attributes: &[crate::parse::Attribute]) -> (bool, bool, Opti
 
     let Some(name_override) = attributes.iter().find_map(|attr| {
         if attr.tokens.len() == 2 && attr.tokens[0] == "setter_name" {
-            Some(attr.tokens[1].clone())
+            Some(&attr.tokens[1])
         } else {
             None
         }
@@ -87,7 +87,7 @@ pub fn attrs_collection_type(attributes: &[crate::parse::Attribute]) -> Option<C
 pub fn attrs_map_strategy(attributes: &[crate::parse::Attribute]) -> Option<MapStrategy> {
     attributes.iter().find_map(|attr| {
         if attr.tokens.len() == 2 && attr.tokens[0] == "map_equality" {
-            let strategy = match attr.tokens[1].clone().as_str() {
+            let strategy = match attr.tokens[1].as_str() {
                 "key_only" => MapStrategy::KeyOnly,
                 "key_and_value" => MapStrategy::KeyAndValue,
                 _ => {
@@ -101,10 +101,10 @@ pub fn attrs_map_strategy(attributes: &[crate::parse::Attribute]) -> Option<MapS
     })
 }
 
-pub fn attrs_expose(attributes: &[crate::parse::Attribute]) -> Option<Option<String>> {
+pub fn attrs_expose(attributes: &[crate::parse::Attribute]) -> Option<Option<&str>> {
     attributes.iter().find_map(|attr| match attr.tokens.len() {
         1 if attr.tokens[0].starts_with("expose") => Some(None),
-        2.. if attr.tokens[0] == "expose" => Some(Some(attr.tokens[1].to_string())),
+        2.. if attr.tokens[0] == "expose" => Some(Some(attr.tokens[1].as_str())),
         _ => None,
     })
 }

@@ -6,8 +6,9 @@ use std::{
     fmt::Debug,
     num::Wrapping,
 };
-use structdiff::{Difference, StructDiff};
+use structdiff::Difference;
 
+#[allow(dead_code)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Difference, Default)]
 #[difference(setters)]
@@ -19,6 +20,7 @@ pub struct Test {
     pub test5: Option<usize>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, PartialEq, Clone, Difference)]
 #[difference(setters)]
 pub struct TestSkip<A>
