@@ -501,11 +501,10 @@ mod nanoserde_impls {
                 3_u8 => UnorderedArrayLikeChange::RemoveFew(DeBin::de_bin(offset, bytes)?),
                 4_u8 => UnorderedArrayLikeChange::InsertSingle(DeBin::de_bin(offset, bytes)?),
                 5_u8 => UnorderedArrayLikeChange::RemoveSingle(DeBin::de_bin(offset, bytes)?),
-                _ => {
+                unknown => {
                     return core::result::Result::Err(nanoserde::DeBinErr {
                         o: *offset,
-                        l: 0,
-                        s: bytes.len(),
+                        msg: nanoserde::DeBinErrReason::UnknownDiscriminant(unknown as isize),
                     })
                 }
             })
@@ -537,11 +536,10 @@ mod nanoserde_impls {
                     }
                     UnorderedArrayLikeDiff(UnorderedArrayLikeDiffInternal::Modify(contents))
                 }
-                _ => {
+                unknown => {
                     return core::result::Result::Err(nanoserde::DeBinErr {
                         o: *offset,
-                        l: 0,
-                        s: bytes.len(),
+                        msg: nanoserde::DeBinErrReason::UnknownDiscriminant(unknown as isize),
                     })
                 }
             })

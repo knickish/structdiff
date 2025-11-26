@@ -691,11 +691,10 @@ mod nanoserde_impls {
                     let r = <usize as DeBin>::de_bin(offset, bytes)?;
                     Ok(OrderedArrayLikeChangeOwned::Swap(l, r))
                 }
-                _ => Err(nanoserde::DeBinErr {
-                    o: *offset - 1,
-                    l: 1,
-                    s: 1,
-                }),
+                unknown => Err(nanoserde::DeBinErr {
+                    o: *offset,
+                    msg: nanoserde::DeBinErrReason::UnknownDiscriminant(unknown as isize),
+                })
             }
         }
     }

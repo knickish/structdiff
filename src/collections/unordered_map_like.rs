@@ -470,11 +470,10 @@ mod nanoserde_impls {
                     DeBin::de_bin(offset, bytes)?,
                 ),
                 3_u8 => UnorderedMapLikeChange::RemoveSingle(DeBin::de_bin(offset, bytes)?),
-                _ => {
+                unknown => {
                     return core::result::Result::Err(nanoserde::DeBinErr {
                         o: *offset,
-                        l: 0,
-                        s: bytes.len(),
+                        msg: nanoserde::DeBinErrReason::UnknownDiscriminant(unknown as isize),
                     })
                 }
             })
@@ -510,11 +509,10 @@ mod nanoserde_impls {
                     }
                     UnorderedMapLikeDiff(UnorderedMapLikeDiffInternal::Modify(contents))
                 }
-                _ => {
+                unknown => {
                     return core::result::Result::Err(nanoserde::DeBinErr {
                         o: *offset,
-                        l: 0,
-                        s: bytes.len(),
+                        msg: nanoserde::DeBinErrReason::UnknownDiscriminant(unknown as isize),
                     })
                 }
             })

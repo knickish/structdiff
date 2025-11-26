@@ -432,11 +432,10 @@ mod nanoserde_impls {
                 0_u8 => UnorderedMapLikeRecursiveChangeOwned::Insert(DeBin::de_bin(offset, bytes)?),
                 1_u8 => UnorderedMapLikeRecursiveChangeOwned::Remove(DeBin::de_bin(offset, bytes)?),
                 2_u8 => UnorderedMapLikeRecursiveChangeOwned::Change(DeBin::de_bin(offset, bytes)?),
-                _ => {
+                unknown => {
                     return core::result::Result::Err(nanoserde::DeBinErr {
                         o: *offset,
-                        l: 0,
-                        s: bytes.len(),
+                        msg: nanoserde::DeBinErrReason::UnknownDiscriminant(unknown as isize),
                     })
                 }
             })
@@ -464,11 +463,10 @@ mod nanoserde_impls {
                         offset, bytes,
                     )?),
                 ),
-                _ => {
+                unknown => {
                     return core::result::Result::Err(nanoserde::DeBinErr {
                         o: *offset,
-                        l: 0,
-                        s: bytes.len(),
+                        msg: nanoserde::DeBinErrReason::UnknownDiscriminant(unknown as isize),
                     })
                 }
             })
