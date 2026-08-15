@@ -4,13 +4,14 @@ name: CI
 
 jobs:
   rustfmt:
-    name: Rustfmt
+    name: "Rustfmt (${{ matrix.crate && matrix.crate || 'base' }})"
     runs-on: ${{ matrix.config.os }}
     strategy:
       fail-fast: true
       matrix:
         config:
           - { os: ubuntu-latest, target: 'x86_64-unknown-linux-gnu' }
+        crate: [null, "derive"]
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -24,13 +25,14 @@ jobs:
           args: --check
 
   clippy:
-    name: Clippy
+    name: "Clippy (${{ matrix.crate && matrix.crate || 'base' }})"
     runs-on: ${{ matrix.config.os }}
     strategy:
       fail-fast: false
       matrix:
         config:
           - { os: ubuntu-latest, target: 'x86_64-unknown-linux-gnu' }
+        crate: [null, "derive"]
     steps:
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
@@ -41,6 +43,7 @@ jobs:
     - uses: actions-rs/cargo@v1
       with:
         command: clippy
+        args: ${{ matrix.crate && format(' --manifest-path {0}/Cargo.toml', matrix.crate) }}
 
   test_all:
     name: TestAll
@@ -64,16 +67,21 @@ jobs:
           command: test
           args: --all-features
 
-  test_backends:
-    name: TestBackends
+  test_feature_matrix:
+    name: TestFeatures
     runs-on: ${{ matrix.config.os }}
     strategy:
       fail-fast: false
       matrix:
         config:
           - { os: ubuntu-latest, target: 'x86_64-unknown-linux-gnu' }
-          - { os: macos-latest, target: 'x86_64-apple-darwin' }
-        backends: ["syn", ""]
+        backend: ["syn", null]
+        serde: ["nanoserde", "serde", null]
+        debug_asserts: ["debug_asserts", null]
+        debug_diffs: ["debug_diffs", null]
+        hash: ['rustc_hash', null]
+        generated_setters: ["generated_setters", null]
+
 
     steps:
       - uses: actions/checkout@v2
@@ -85,51 +93,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --features "debug_asserts, rustc_hash, generated_setters, debug_diffs, serde, nanoserde, ${{ matrix.backends.target }}"
-
-  test_serde:
-    name: TestSerde
-    runs-on: ${{ matrix.config.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          - { os: ubuntu-latest, target: 'x86_64-unknown-linux-gnu' }
-          - { os: macos-latest, target: 'x86_64-apple-darwin' }
-
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: ${{ matrix.config.target }}
-          override: true      
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --features serde
-
-  test_setters:
-    name: TestSetters
-    runs-on: ${{ matrix.config.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          - { os: ubuntu-latest, target: 'x86_64-unknown-linux-gnu' }
-          - { os: macos-latest, target: 'x86_64-apple-darwin' }
-
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: ${{ matrix.config.target }}
-          override: true      
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --features generated_setters
+          args: ${{ format('--features "{0}"', join(fromJSON(format('["{0}","{1}","{2}","{3}","{4}","{5}"]', matrix.backend || '', matrix.serde || '', matrix.debug_asserts || '', matrix.debug_diffs || '', matrix.hash || '', matrix.generated_setters || '')), ',')) }}
   
   test_min:
     name: TestMin

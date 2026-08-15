@@ -1141,7 +1141,7 @@ fn next_attributes_list(source: &mut Peekable<impl Iterator<Item = TokenTree>>) 
 
     while let Some(attr) = next_attribute(source) {
         if let Some(structdiff_attr) = attr {
-            attributes.extend(structdiff_attr.into_iter());
+            attributes.extend(structdiff_attr);
         }
     }
 
