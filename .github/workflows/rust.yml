@@ -64,6 +64,29 @@ jobs:
           command: test
           args: --all-features
 
+  test_backends:
+    name: TestBackends
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { os: ubuntu-latest, target: 'x86_64-unknown-linux-gnu' }
+          - { os: macos-latest, target: 'x86_64-apple-darwin' }
+        backends: ["syn", ""]
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.config.target }}
+          override: true      
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --features "debug_asserts, rustc_hash, generated_setters, debug_diffs, serde, nanoserde, ${{ matrix.backends.target }}"
+
   test_serde:
     name: TestSerde
     runs-on: ${{ matrix.config.os }}
