@@ -19,6 +19,7 @@ structdiff-derive   = { path = "derive", version = "=0.7.4" }
 "default"       = []
 "nanoserde"     = ["dep:nanoserde", "structdiff-derive/nanoserde"]
 "serde"         = ["dep:serde", "structdiff-derive/serde"]
+"syn"           = ["structdiff-derive/syn"]
 "debug_diffs"   = ["structdiff-derive/debug_diffs"]
 "generated_setters" = ["structdiff-derive/generated_setters"]
 "rustc_hash"    = ["dep:rustc-hash"]

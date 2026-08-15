@@ -70,6 +70,7 @@ For more examples take a look at [integration tests](/tests)
 - `debug_diffs` - Derive `Debug` on the generated diff type
 - `generated_setters` - Enable generation of setters for struct fields. These setters automatically return a diff if a field's value is changed by the assignment.
 - `rustc_hash` - Use the (non-cryptographic) hash implementation from the `rustc-hash` crate instead of the default hasher. Much faster diff generation for collections at the cost of a dependency.
+- `syn` - Use a `syn`-based backend for the `Difference` derive macro. This adds the `syn`, `quote`, and `proc-macro2` dependencies, but supports Rust syntax through `syn`'s parser instead of structdiff's zero-dependency derive parser.
 
 ### Development status 
 This is being used actively for my own projects, although it's mostly working now. PRs will be accepted for either more tests or functionality.
