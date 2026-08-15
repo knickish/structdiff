@@ -1249,7 +1249,7 @@ pub(crate) fn derive_struct_diff_enum(enum_: &Enum) -> TokenStream {
 
     let ref_into_owned_body = format!(
         "Self::Replace(variant) => {}::Replace(variant.clone()),",
-        &enum_name
+        enum_name
     );
     let struct_generics_names_hash: HashSet<String> =
         enum_.generics.iter().map(|x| x.full()).collect();

@@ -24,13 +24,14 @@ jobs:
           args: --check
 
   clippy:
-    name: Clippy
+    name: "Clippy (${{ matrix.crate && matrix.crate || 'base' }})"
     runs-on: ${{ matrix.config.os }}
     strategy:
       fail-fast: false
       matrix:
         config:
           - { os: ubuntu-latest, target: 'x86_64-unknown-linux-gnu' }
+        crate: [null, "derive"]
     steps:
     - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1
@@ -41,6 +42,7 @@ jobs:
     - uses: actions-rs/cargo@v1
       with:
         command: clippy
+        args: ${{ matrix.crate && format(' --manifest-path {1}/Cargo.toml', matrix.crate) }
 
   test_all:
     name: TestAll
